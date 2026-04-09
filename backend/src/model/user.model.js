@@ -20,7 +20,7 @@ const userSchema = new Schema(
             trim: true,
             index: true
         },
-        fullname: {
+        fullName: {
             type: String,
             required: true,
             trim: true,
@@ -74,7 +74,7 @@ userSchema.methods.genrateAccessToken=function (){
     )
 }
 
-userSchema.method.genrateRefreshToken=function (){
+userSchema.methods.genrateRefreshToken=function (){
     return jwt.sign(
         {_id:this._id},
         process.env.REFRESH_TOKEN_SECRET,
