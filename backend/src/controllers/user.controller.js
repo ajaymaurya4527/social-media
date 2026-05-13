@@ -1,5 +1,8 @@
 import { User } from "../model/user.model.js"
 import { uploadCloudinary } from "../utils/cloudinary.js"
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import { subscribe } from "diagnostics_channel";
 
 const registerUser = async (req, res) => {
     try {
@@ -436,7 +439,154 @@ const updateUserCoverImage = async (req, res) => {
         })
     }
 }
+const getUserChannelProfile = async (req, res) => {
+    const { username } = req.params
 
+    if (!username?.trim()) {
+        return res.status(400).json({
+            success: false,
+            message: "Username is missing"
+        })
+    }
+
+    try {
+        const channel = await User.aggregate([
+            {
+                $match: {
+                    username: username?.toLowerCase()
+                }
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "channel",
+                    as: "subscribers"
+                }
+            },
+            {
+                $lookup: {
+                    from: "subscriptions",
+                    localField: "_id",
+                    foreignField: "subscriber", // Fixed typo: 'suscriber' to 'subscriber'
+                    as: "subscribedTo"
+                }
+            },
+            {
+                $addFields: {
+                    subscribersCount: {
+                        $size: "$subscribers"
+                    },
+                    channelSubscribedToCount: {
+                        $size: "$subscribedTo"
+                    },
+                    isSubscribed: {
+                        $cond: {
+                            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                            then: true,
+                            else: false
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    fullName: 1,
+                    username: 1,
+                    subscribersCount: 1,
+                    channelSubscribedToCount: 1,
+                    isSubscribed: 1,
+                    avatar: 1,
+                    coverImage: 1,
+                    email: 1
+                }
+            }
+        ])
+
+        if (!channel?.length) {
+            return res.status(404).json({
+                success: false,
+                message: "Channel does not exist"
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: channel[0],
+            message: "User channel fetched successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while fetching channel profile"
+        })
+    }
+}
+const getWatchHistory = async (req, res) => {
+    try {
+        const user = await User.aggregate([
+            {
+                $match: {
+                    _id: new mongoose.Types.ObjectId(req.user?._id)
+                }
+            },
+            {
+                $lookup: {
+                    from: "videos",
+                    localField: "watchHistory",
+                    foreignField: "_id",
+                    as: "watchHistory",
+                    pipeline: [
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "owner",
+                                foreignField: "_id",
+                                as: "owner",
+                                pipeline: [
+                                    {
+                                        $project: {
+                                            fullName: 1,
+                                            username: 1,
+                                            avatar: 1
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            $addFields: {
+                                owner: {
+                                    $first: "$owner"
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ])
+
+        if (!user || user.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: user[0].watchHistory,
+            message: "Watch history fetched successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while fetching watch history"
+        })
+    }
+}
 
 
 export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage };
