@@ -150,6 +150,293 @@ const loginUser = async (req, res) => {
     }
 };
 
+const lagoutUser=async (req,res)=>{
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $unset: {
+                refreshToken: 1 // this removes the field from document
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {//In our backend controller, const options = { httpOnly: true, secure: true } is used to configure security flags for cookies (like session IDs or JWTs) to protect them from common web attacks
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json({success:true,message:"logged out successfully"})
+}
+
+const refreshAccessToken = async (req, res) => {
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if (!incomingRefreshToken) {
+        return res.status(401).json({
+            success: false,
+            message: "Unauthorized request"
+        })
+    }
+
+    try {
+        const decodedToken = jwt.verify(
+            incomingRefreshToken,
+            process.env.REFRESH_TOKEN_SECRET
+        )
+
+        const user = await User.findById(decodedToken?._id)
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid refresh token"
+            })
+        }
+
+        if (incomingRefreshToken !== user?.refreshToken) {
+            return res.status(401).json({
+                success: false,
+                message: "Refresh token is expired or used"
+            })
+        }
+
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+
+        const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id)
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", newRefreshToken, options)
+            .json({
+                success: true,
+                accessToken,
+                refreshToken: newRefreshToken,
+                message: "Access token refreshed"
+            })
+
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: error?.message || "Invalid refresh token"
+        })
+    }
+}
+const changeCurrentPassword = async (req, res) => {
+    const { oldPassword, newPassword } = req.body
+
+    try {
+        const user = await User.findById(req.user?._id)
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+        if (!isPasswordCorrect) {
+            return res.status(401).json({
+                success: false,
+                message: "Old password is incorrect"
+            })
+        }
+
+        user.password = newPassword
+        await user.save({ validateBeforeSave: false })
+
+        return res.status(200).json({
+            success: true,
+            message: "Password changed successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while changing password"
+        })
+    }
+}
+
+const getCurrentUser = async (req, res) => {
+    try {
+        
+
+        return res.status(200).json({
+            success: true,
+            data: req.user,
+            message: "Current user fetched successfully"
+        })
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while fetching user"
+        })
+    }
+}
+const updateAccount = async (req, res) => {
+    const { fullName, email } = req.body
+
+    if (!fullName || !email) {
+        return res.status(400).json({
+            success: false,
+            message: "All fields (fullName and email) are required"
+        })
+    }
+
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    fullName: fullName,
+                    email: email
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password")
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: user,
+            message: "Account updated successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while updating account"
+        })
+    }
+}
+
+const updateUserAvatar = async (req, res) => {
+    const avatarLocalPath = req.file?.path
+
+    if (!avatarLocalPath) {
+        return res.status(400).json({
+            success: false,
+            message: "Avatar file is missing"
+        })
+    }
+
+    try {
+        // 1. Upload new avatar to Cloudinary
+        const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+        if (!avatar?.url) {
+            return res.status(400).json({
+                success: false,
+                message: "Error while uploading avatar to Cloudinary"
+            })
+        }
+
+        // 2. Update user document with the new avatar URL
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    avatar: avatar.url
+                }
+            },
+            { new: true }
+        ).select("-password")
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: user,
+            message: "Avatar updated successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while updating avatar"
+        })
+    }
+}
+
+const updateUserCoverImage = async (req, res) => {
+    const coverImageLocalPath = req.file?.path
+
+    if (!coverImageLocalPath) {
+        return res.status(400).json({
+            success: false,
+            message: "Cover image file is required"
+        })
+    }
+
+    try {
+        // 1. Upload new image to Cloudinary
+        const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+        if (!coverImage?.url) {
+            return res.status(400).json({
+                success: false,
+                message: "Failed to upload cover image to Cloudinary"
+            })
+        }
+
+        // 2. Update the user document with the new URL
+        const user = await User.findByIdAndUpdate(
+            req.user?._id,
+            {
+                $set: {
+                    coverImage: coverImage.url
+                }
+            },
+            { new: true }
+        ).select("-password")
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            })
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: user,
+            message: "Cover image updated successfully"
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error?.message || "Internal server error while updating cover image"
+        })
+    }
+}
 
 
-export { registerUser, loginUser };
+
+export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage };
