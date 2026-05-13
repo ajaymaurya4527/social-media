@@ -12,7 +12,6 @@ app.use(cors({
     origin:process.env.CORS_ORIGIN,
     credentials:true
 }));
-app.get("/test", (req, res) => res.send("Server is alive!"));
 
 app.use(express.json({limit:"16kb"}));
 

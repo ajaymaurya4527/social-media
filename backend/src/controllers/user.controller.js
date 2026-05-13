@@ -142,14 +142,15 @@ const loginUser = async (req, res) => {
             .cookie("refreshToken", refreshToken, options)
             .json({
                 success: true,
-                user: loggedInUser,
                 accessToken,
                 refreshToken,
                 message: "User logged in successfully"
             });
 
     } catch (error) {
+        console.log(error)
         return res.status(500).json({ message: error.message });
+        
     }
 };
 
@@ -589,4 +590,4 @@ const getWatchHistory = async (req, res) => {
 }
 
 
-export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage };
+export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory};
