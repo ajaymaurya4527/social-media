@@ -1,33 +1,34 @@
 import React from 'react';
-import { Home, Search, PlusSquare, Heart, Send } from 'lucide-react'; // Using lucide-react for icons
+import { NavLink } from 'react-router';
+import { Heart, PlusSquare, Send } from 'lucide-react';
 
 const Header = () => {
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-300 z-50 px-4 flex items-center justify-between">
-      {/* Logo */}
-      <div className="text-2xl font-bold tracking-tighter cursor-pointer font-serif">
-        Instagram
-      </div>
-
-      {/* Search Bar - Hidden on small mobile */}
-      <div className="hidden md:block">
-        <input 
-          type="text" 
-          placeholder="Search" 
-          className="bg-gray-100 border-none rounded-md py-1 px-4 w-64 focus:ring-0"
-        />
-      </div>
-
-      {/* Icons */}
-      <div className="flex items-center space-x-5">
-        <Home className="cursor-pointer hover:scale-110 transition-transform hidden sm:block" />
-        <Send className="cursor-pointer hover:scale-110 transition-transform" />
-        <PlusSquare className="cursor-pointer hover:scale-110 transition-transform" />
-        <Heart className="cursor-pointer hover:scale-110 transition-transform" />
-        {/* Profile Avatar - Uses the avatar URL from your backend req.user */}
-        <div className="w-7 h-7 rounded-full bg-gray-300 border border-gray-200 overflow-hidden cursor-pointer">
-          <img src="https://via.placeholder.com/150" alt="profile" />
+    <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50 px-4">
+      <div className="flex items-center justify-between h-full max-w-5xl mx-auto">
+        
+        {/* Left: Create Post/Messages (IG Mobile Style) */}
+        <div className="flex items-center space-x-4 flex-1">
+           <NavLink to="/create" className="hover:scale-105 transition-transform">
+            <PlusSquare size={24} />
+          </NavLink>
         </div>
+
+        {/* Middle: Brand Name */}
+        <div className="flex justify-center flex-1">
+          <NavLink to="/" className="text-2xl font-bold tracking-tighter font-serif italic">
+            Spotlight
+          </NavLink>
+        </div>
+
+        {/* Right: Notifications & Messages */}
+        <div className="flex items-center justify-end space-x-4 flex-1">
+          <NavLink to="/notifications" className="hover:scale-105 transition-transform">
+            <Heart size={24} />
+          </NavLink>
+          
+        </div>
+
       </div>
     </nav>
   );

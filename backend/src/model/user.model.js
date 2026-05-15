@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose"; 
+import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -27,16 +27,30 @@ const userSchema = new Schema(
             index: true
         },
         avatar: {
-            type: String, 
+            type: String,
             required: true,
         },
         coverImage: {
-            type: String, 
+            type: String,
         },
+        // --- NEW FIELDS FOR SOCIAL FEATURES ---
+        followers: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ],
+        following: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ],
+        // ---------------------------------------
         watchHistory: [
             {
-                type: Schema.Types.ObjectId, 
-                ref: "Video"
+                type: Schema.Types.ObjectId,
+                ref: "Post" // Changed from Video to Post to match your new schema
             }
         ],
         password: {
@@ -45,52 +59,62 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String
-        }
+        },
+        bio: {
+            type: String,
+            default: "",
+            maxLength: [160, "Bio cannot exceed 160 characters"]
+        },
+        savedPosts: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Post"
+            }
+        ]
     },
-    { 
-        timestamps: true 
+    {
+        timestamps: true
     }
 );
-// No 'next' function needed when returning a Promise
-userSchema.pre("save", function () { 
-    // It's still a REGULAR function so 'this' binds correctly to the document.
-    if (!this.isModified("password")) return; // Simply return if no modification
 
-    // Return the Promise from the async operation (bcrypt.hash)
-    return bcrypt.hash(this.password, 10)
-        .then(hash => {
-            this.password = hash;
-        });
+// Password hashing logic using async/await
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+
+    try {
+        this.password = await bcrypt.hash(this.password, 10);
+        next();
+    } catch (error) {
+        next(error);
+    }
 });
 
-// userSchema.pre("save", async function (next) {
-//     if (!this.isModified("password")) return next();
+// Method to check if password is correct
+userSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password);
+};
 
-//     this.password = await bcrypt.hash(this.password, 10);
-//     next();
-// });
-
-userSchema.methods.isPasswordCorrect=async function (password){
-    return await bcrypt.compare(password,this.password)
-}
-
-userSchema.methods.generateAccessToken=function (){
+// Access Token Generation
+userSchema.methods.generateAccessToken = function () {
     return jwt.sign(
-        { _id: this._id,
-            username:this.username
+        {
+            _id: this._id,
+            username: this.username,
+            email: this.email,
+            fullName: this.fullName
         },
         process.env.ACCESS_TOKEN_SECRET,
         { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }
+    );
+};
 
-    )
-}
-
-userSchema.methods.generateRefreshToken=function (){
+// Refresh Token Generation
+userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
-        {_id:this._id},
+        { _id: this._id },
         process.env.REFRESH_TOKEN_SECRET,
-        {expiresIn:process.env.REFRESH_TOKEN_EXPIRY}
-    )
-}
+        { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }
+    );
+};
 
 export const User = mongoose.model("User", userSchema);

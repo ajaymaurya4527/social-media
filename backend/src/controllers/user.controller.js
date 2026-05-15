@@ -588,6 +588,90 @@ const getWatchHistory = async (req, res) => {
         })
     }
 }
+const updateAccountDetails = async (req, res) => {
+    try {
+        const { fullName, bio } = req.body;
+
+        // Validation: Ensure at least one field is provided
+        if (!fullName && !bio) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Nothing to update" 
+            });
+        }
+
+        // Find user by ID (from auth middleware) and update
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user?._id, // Assumes your auth middleware attaches user to req
+            {
+                $set: {
+                    fullName: fullName,
+                    bio: bio,
+                    email: req.user.email
+                }
+            },
+            { new: true, runValidators: true} // Returns the updated object rather than the old one
+        ).select("-password"); // Don't send the password back
+
+        return res.status(200).json({
+            success: true,
+            data: updatedUser,
+            message: "Account details updated successfully"
+        });
+
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Internal Server Error"
+        });
+    }
+};
+const searchUsers = async (req, res) => {
+    try {
+        // Get the search query from the URL (e.g., /api/v1/users/search?q=john)
+        const { q } = req.query;
+
+        // If no query parameter is provided, return default suggested users (e.g., latest 10 users)
+        if (!q || q.trim() === "") {
+            const suggestions = await User.find()
+                .select("username fullName avatar isVerified")
+                .limit(10)
+                .sort({ createdAt: -1 });
+
+            return res.status(200).json({
+                success: true,
+                data: suggestions
+            });
+        }
+
+        // Clean the query string
+        const searchRegex = new RegExp(q.trim(), "i"); // "i" makes it case-insensitive
+
+        // Find users where username OR fullName matches the regex search pattern
+        const matchedUsers = await User.find({
+            $or: [
+                { username: { $regex: searchRegex } },
+                { fullName: { $regex: searchRegex } }
+            ]
+        })
+        .select("username fullName avatar isVerified") // Only send necessary fields
+        .limit(20); // Limit results for better performance
+
+        return res.status(200).json({
+            success: true,
+            data: matchedUsers
+        });
+
+    } catch (error) {
+        console.error("Backend search error:", error);
+        return res.status(500).json({ 
+            success: false, 
+            message: "Server error occurred while searching profiles." 
+        });
+    }
+};
 
 
-export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory};
+
+export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,updateAccountDetails,searchUsers};
