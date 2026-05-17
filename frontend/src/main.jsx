@@ -13,6 +13,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/RegisterUser.jsx';
 import CreatePost from './pages/CreatePost.jsx';
 import SearchPage from './pages/SearchPage.jsx';
+import UserProfilePage from './pages/UserProfilePage.jsx'; // <-- 1. IMPORT YOUR NEW PAGE HERE
 
 // Placeholder for other routes
 const Placeholder = ({ title }) => (
@@ -42,6 +43,15 @@ const router = createBrowserRouter([
         element: (
           <AuthLayout authentication={true}>
             <SearchPage />
+          </AuthLayout>
+        )
+      },
+      // --- 2. ADD THE DYNAMIC USER PROFILE ROUTE BELOW ---
+      {
+        path: "user/:username", 
+        element: (
+          <AuthLayout authentication={true}>
+            <UserProfilePage />
           </AuthLayout>
         )
       },

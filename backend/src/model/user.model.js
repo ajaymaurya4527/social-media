@@ -78,15 +78,26 @@ const userSchema = new Schema(
 );
 
 // Password hashing logic using async/await
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next();
+// userSchema.pre("save", async function (next) {
+//     if (!this.isModified("password")) return next();
 
-    try {
-        this.password = await bcrypt.hash(this.password, 10);
-        next();
-    } catch (error) {
-        next(error);
-    }
+//     try {
+//         this.password = await bcrypt.hash(this.password, 10);
+//         next();
+//     } catch (error) {
+//         next(error);
+//     }
+// });
+
+userSchema.pre("save", function () { 
+    // It's still a REGULAR function so 'this' binds correctly to the document.
+    if (!this.isModified("password")) return; // Simply return if no modification
+
+    // Return the Promise from the async operation (bcrypt.hash)
+    return bcrypt.hash(this.password, 10)
+        .then(hash => {
+            this.password = hash;
+        });
 });
 
 // Method to check if password is correct

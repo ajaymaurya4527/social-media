@@ -10,8 +10,7 @@ dotenv.config({path:"./.env"})
 
 
 app.use(cors({
-    // Replace with your actual frontend URL (no trailing slash)
-    origin: "http://localhost:5173", 
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -28,11 +27,13 @@ app.use(cookieParser());
 //routes
 import userRouter from "./routes/user.route.js";
 import postRouter from "./routes/post.route.js";
+import subscriptionRouter from "./routes/subscription.route.js"
 
 
 //route decleration
 app.use("/api/v1/users",userRouter);//url make http://localhost:7000/api/v1/user/rigister
-app.use("/api/v1/post",postRouter)
+app.use("/api/v1/post",postRouter);
+app.use("/api/v1/subscription",subscriptionRouter);
 
 export default app
 

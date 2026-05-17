@@ -3,6 +3,10 @@ import { uploadCloudinary } from "../utils/cloudinary.js"
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { subscribe } from "diagnostics_channel";
+import { Post } from "../model/post.model.js";
+import { Subscription } from "../model/subscription.model.js";
+
+
 
 const registerUser = async (req, res) => {
     try {
@@ -68,7 +72,7 @@ const registerUser = async (req, res) => {
         const options = {
             httpOnly: true,
             secure: true,
-            maxAge: 24 * 60 * 60 * 1000 // 24 Hours
+           
         };
 
         // 10. Success Response with Tokens
@@ -85,6 +89,7 @@ const registerUser = async (req, res) => {
             });
 
     } catch (error) {
+        console.log(error)
         return res.status(500).json({
             success: false,
             message: "Registration failed",
@@ -440,90 +445,74 @@ const updateUserCoverImage = async (req, res) => {
         })
     }
 }
+
+
+// Add this updated function inside your user.controller.js
 const getUserChannelProfile = async (req, res) => {
-    const { username } = req.params
+    const { username } = req.params;
 
     if (!username?.trim()) {
         return res.status(400).json({
             success: false,
             message: "Username is missing"
-        })
+        });
     }
 
     try {
-        const channel = await User.aggregate([
-            {
-                $match: {
-                    username: username?.toLowerCase()
-                }
-            },
-            {
-                $lookup: {
-                    from: "subscriptions",
-                    localField: "_id",
-                    foreignField: "channel",
-                    as: "subscribers"
-                }
-            },
-            {
-                $lookup: {
-                    from: "subscriptions",
-                    localField: "_id",
-                    foreignField: "subscriber", // Fixed typo: 'suscriber' to 'subscriber'
-                    as: "subscribedTo"
-                }
-            },
-            {
-                $addFields: {
-                    subscribersCount: {
-                        $size: "$subscribers"
-                    },
-                    channelSubscribedToCount: {
-                        $size: "$subscribedTo"
-                    },
-                    isSubscribed: {
-                        $cond: {
-                            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
-                            then: true,
-                            else: false
-                        }
-                    }
-                }
-            },
-            {
-                $project: {
-                    fullName: 1,
-                    username: 1,
-                    subscribersCount: 1,
-                    channelSubscribedToCount: 1,
-                    isSubscribed: 1,
-                    avatar: 1,
-                    coverImage: 1,
-                    email: 1
-                }
-            }
-        ])
-
-        if (!channel?.length) {
+        // Find the target profile user first to access their ID easily
+        const targetUser = await User.findOne({ username: username.toLowerCase() });
+        
+        if (!targetUser) {
             return res.status(404).json({
                 success: false,
                 message: "Channel does not exist"
-            })
+            });
         }
 
+        // Fetch posts created by this specific user
+        const userPosts = await Post.find({ owner: targetUser._id }).sort({ createdAt: -1 });
+
+        // Build the active user relationship verification safely
+        const loggedInUserId = req.user?._id;
+        let isFollowingUser = false;
+
+        if (loggedInUserId) {
+            // Check if logged-in user's ID is present in the target user's followers array
+            isFollowingUser = targetUser.followers.some(
+                (followerId) => followerId.toString() === loggedInUserId.toString()
+            );
+        }
+
+        // Send back organized response payload matching your exact frontend expectations
         return res.status(200).json({
             success: true,
-            data: channel[0],
+            data: {
+                user: {
+                    _id: targetUser._id,
+                    fullName: targetUser.fullName,
+                    username: targetUser.username,
+                    email: targetUser.email,
+                    avatar: targetUser.avatar,
+                    coverImage: targetUser.coverImage,
+                    bio: targetUser.bio,
+                    isVerified: targetUser.isVerified,
+                    followersCount: targetUser.followers ? targetUser.followers.length : 0,
+                    followingCount: targetUser.following ? targetUser.following.length : 0,
+                    isFollowing: isFollowingUser
+                },
+                posts: userPosts // Injected actual posts array instead of hardcoded empty bracket []
+            },
             message: "User channel fetched successfully"
-        })
+        });
 
     } catch (error) {
         return res.status(500).json({
             success: false,
             message: error?.message || "Internal server error while fetching channel profile"
-        })
+        });
     }
-}
+};
+
 const getWatchHistory = async (req, res) => {
     try {
         const user = await User.aggregate([
@@ -671,7 +660,72 @@ const searchUsers = async (req, res) => {
         });
     }
 };
+const getUserPublicProfile = async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        // 1. Find the target user by their unique username
+        const user = await User.findOne({ username })
+            .select("username fullName avatar bio followers following");
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "This user profile does not exist."
+            });
+        }
+
+        // 2. Fetch all published posts linked to this specific user ID
+        const posts = await Post.find({ 
+            owner: new mongoose.Types.ObjectId(user._id),
+            isPublished: true 
+        })
+        .sort({ createdAt: -1 })
+        .select("mediaType mediaFiles thumbnail caption likes commentCount views createdAt");
+
+        // 3. Format the user object to send explicit length counts to the frontend
+        const profileData = {
+            _id: user._id,
+            username: user.username,
+            fullName: user.fullName,
+            avatar: user.avatar,
+            bio: user.bio,
+            followersCount: user.followers ? user.followers.length : 0,
+            followingCount: user.following ? user.following.length : 0,
+        };
+
+        // 4. Map posts to explicitly calculate structural parameters like likesCount
+        const formattedPosts = posts.map(post => ({
+            _id: post._id,
+            mediaType: post.mediaType,
+            // Fallback map: if mediaFiles exist, extract the first asset URL for the profile preview grid
+            image: post.mediaFiles && post.mediaFiles.length > 0 ? post.mediaFiles[0].url : post.thumbnail,
+            caption: post.caption,
+            likesCount: post.likes ? post.likes.length : 0,
+            commentsCount: post.commentCount || 0,
+            views: post.views,
+            createdAt: post.createdAt
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: "Public profile loaded successfully.",
+            data: {
+                user: profileData,
+                posts: formattedPosts
+            }
+        });
+
+    } catch (error) {
+        console.error("Profile endpoint error details:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error loading profile view dashboards.",
+            error: error.message
+        });
+    }
+};
 
 
 
-export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,updateAccountDetails,searchUsers};
+export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,updateAccountDetails,searchUsers,getUserPublicProfile};
