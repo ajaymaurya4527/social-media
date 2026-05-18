@@ -13,9 +13,10 @@ import Login from './pages/Login.jsx';
 import Register from './pages/RegisterUser.jsx';
 import CreatePost from './pages/CreatePost.jsx';
 import SearchPage from './pages/SearchPage.jsx';
-import UserProfilePage from './pages/UserProfilePage.jsx'; // <-- 1. IMPORT YOUR NEW PAGE HERE
+import UserProfilePage from './pages/UserProfilePage.jsx';
+import PostDetail from './pages/PostDetail.jsx'; // <-- 1. IMPORT YOUR NEW DETAIL PAGE
+import Messages from './pages/MessagePage.jsx';
 
-// Placeholder for other routes
 const Placeholder = ({ title }) => (
   <div className="pt-24 text-center">
     <h1 className="text-4xl font-bold text-zinc-800">{title}</h1>
@@ -46,12 +47,20 @@ const router = createBrowserRouter([
           </AuthLayout>
         )
       },
-      // --- 2. ADD THE DYNAMIC USER PROFILE ROUTE BELOW ---
       {
         path: "user/:username", 
         element: (
           <AuthLayout authentication={true}>
             <UserProfilePage />
+          </AuthLayout>
+        )
+      },
+      // --- 2. ADD THE NEW DYNAMIC POST ROUTE HERE ---
+      {
+        path: "post/:id",
+        element: (
+          <AuthLayout authentication={true}>
+            <PostDetail />
           </AuthLayout>
         )
       },
@@ -67,7 +76,7 @@ const router = createBrowserRouter([
         path: "messages",
         element: (
           <AuthLayout authentication={true}>
-            <Placeholder title="Messages" />
+            <Messages />
           </AuthLayout>
         )
       },
@@ -95,7 +104,6 @@ const router = createBrowserRouter([
           </AuthLayout>
         )
       },
-      // AUTH ROUTES (authentication={false} means only logged-out users can see these)
       {
         path: "login",
         element: (

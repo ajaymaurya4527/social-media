@@ -23,9 +23,7 @@ const UserProfilePage = () => {
   const navigate = useNavigate();
   const { backendUrl } = useContext(ShopContext);
 
-  // ======================================================
-  // STATE
-  // ======================================================
+  // State
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,9 +31,6 @@ const UserProfilePage = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
 
-  // ======================================================
-  // TOKEN + HEADERS
-  // ======================================================
   const token = localStorage.getItem("accessToken");
 
   const headers = useMemo(
@@ -45,9 +40,7 @@ const UserProfilePage = () => {
     [token]
   );
 
-  // ======================================================
-  // FETCH PROFILE DATA
-  // ======================================================
+  // Fetch Profile Data
   useEffect(() => {
     if (!backendUrl || !username || !token) {
       return;
@@ -71,7 +64,6 @@ const UserProfilePage = () => {
         if (response.data.success && isMounted) {
           const userData = response.data.data.user;
           setProfile(userData);
-          // Set real posts array coming from the updated backend controller
           setPosts(response.data.data.posts || []);
           setIsFollowing(userData.isFollowing || false);
         }
@@ -94,16 +86,13 @@ const UserProfilePage = () => {
     };
   }, [username, backendUrl, headers, token]);
 
-  // ======================================================
-  // TOGGLE FOLLOW ACTION (OPTIMISTIC UI UPDATE)
-  // ======================================================
+  // Toggle Follow Action
   const handleFollowToggle = async () => {
     if (!token || !backendUrl || followLoading) return;
 
     const previousIsFollowing = isFollowing;
     const previousFollowersCount = profile?.followersCount || 0;
 
-    // Optimistic UI updates
     setIsFollowing(!previousIsFollowing);
     setProfile((prev) => ({
       ...prev,
@@ -125,7 +114,6 @@ const UserProfilePage = () => {
       }
     } catch (err) {
       console.error("Failed handling connection shift action:", err);
-      // Rollback states cleanly upon interface communication errors
       setIsFollowing(previousIsFollowing);
       setProfile((prev) => ({
         ...prev,
@@ -136,9 +124,21 @@ const UserProfilePage = () => {
     }
   };
 
-  // ======================================================
-  // LOADING UI
-  // ======================================================
+  // Navigates to the chat page and passes this user's information through React Router state
+  const handleInitiateChat = () => {
+    if (!profile) return;
+    navigate("/messages", {
+      state: {
+        chatTargetUser: {
+          _id: profile._id,
+          username: profile.username,
+          fullName: profile.fullName,
+          avatar: profile.avatar,
+        },
+      },
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex justify-center items-center">
@@ -147,53 +147,33 @@ const UserProfilePage = () => {
     );
   }
 
-  // ======================================================
-  // PROFILE NOT FOUND
-  // ======================================================
   if (!profile) {
     return (
       <div className="min-h-screen bg-white text-center py-20 px-4">
-        <p className="text-slate-500 font-medium">
-          User not found or profile is private.
-        </p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-4 text-sm font-bold text-indigo-600"
-        >
+        <p className="text-slate-500 font-medium">User not found or profile is private.</p>
+        <button onClick={() => navigate(-1)} className="mt-4 text-sm font-bold text-indigo-600">
           Go Back
         </button>
       </div>
     );
   }
 
-  // ======================================================
-  // MAIN UI
-  // ======================================================
   return (
     <div className="min-h-screen bg-white text-slate-900 pb-20 font-sans antialiased max-w-md mx-auto border-x border-slate-50">
       {/* HEADER */}
       <div className="sticky top-0 bg-white border-b border-slate-100 z-40 px-4 py-3 flex items-center gap-4">
-        <button
-          onClick={() => navigate(-1)}
-          className="p-1 hover:bg-slate-100 rounded-full transition-colors"
-        >
+        <button onClick={() => navigate(-1)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
           <ArrowLeft size={22} className="text-slate-800" />
         </button>
-
         <div className="flex items-center gap-1.5">
-          <h1 className="font-bold text-base tracking-tight text-slate-900">
-            {profile.username}
-          </h1>
-          {profile.isVerified && (
-            <CheckCircle size={15} className="text-blue-500 fill-blue-500" />
-          )}
+          <h1 className="font-bold text-base tracking-tight text-slate-900">{profile.username}</h1>
+          {profile.isVerified && <CheckCircle size={15} className="text-blue-500 fill-blue-500" />}
         </div>
       </div>
 
       {/* PROFILE INFO */}
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-center justify-between gap-6 mb-4">
-          {/* AVATAR */}
           <div className="w-20 h-20 rounded-full overflow-hidden border border-slate-200 bg-slate-50 shrink-0">
             {profile.avatar ? (
               <img
@@ -212,44 +192,28 @@ const UserProfilePage = () => {
             )}
           </div>
 
-          {/* STATS */}
           <div className="flex justify-around items-center flex-1 text-center">
             <div>
-              <div className="font-bold text-base text-slate-900">
-                {posts.length}
-              </div>
+              <div className="font-bold text-base text-slate-900">{posts.length}</div>
               <div className="text-xs text-slate-500 font-normal">Posts</div>
             </div>
-
             <div>
-              <div className="font-bold text-base text-slate-900">
-                {profile.followersCount || 0}
-              </div>
+              <div className="font-bold text-base text-slate-900">{profile.followersCount || 0}</div>
               <div className="text-xs text-slate-500 font-normal">Followers</div>
             </div>
-
             <div>
-              <div className="font-bold text-base text-slate-900">
-                {profile.followingCount || 0}
-              </div>
+              <div className="font-bold text-base text-slate-900">{profile.followingCount || 0}</div>
               <div className="text-xs text-slate-500 font-normal">Following</div>
             </div>
           </div>
         </div>
 
-        {/* BIO */}
         <div className="space-y-0.5 mb-5 px-1">
-          <h2 className="text-sm font-bold text-slate-900">
-            {profile.fullName}
-          </h2>
+          <h2 className="text-sm font-bold text-slate-900">{profile.fullName}</h2>
           {profile.bio ? (
-            <p className="text-sm text-slate-700 font-normal whitespace-pre-wrap leading-snug">
-              {profile.bio}
-            </p>
+            <p className="text-sm text-slate-700 font-normal whitespace-pre-wrap leading-snug">{profile.bio}</p>
           ) : (
-            <p className="text-xs text-slate-400 italic font-normal">
-              No bio text provided yet.
-            </p>
+            <p className="text-xs text-slate-400 italic font-normal">No bio text provided yet.</p>
           )}
         </div>
 
@@ -267,7 +231,10 @@ const UserProfilePage = () => {
             {isFollowing ? "Following" : "Follow"}
           </button>
 
-          <button className="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 text-sm font-semibold py-2 rounded-lg transition-all">
+          <button
+            onClick={handleInitiateChat}
+            className="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 text-sm font-semibold py-2 rounded-lg transition-all"
+          >
             Message
           </button>
         </div>
@@ -278,20 +245,15 @@ const UserProfilePage = () => {
         <button
           onClick={() => setActiveTab("posts")}
           className={`flex-1 flex justify-center py-3.5 border-b-2 transition-colors ${
-            activeTab === "posts"
-              ? "border-slate-900 text-slate-900"
-              : "border-transparent text-slate-400"
+            activeTab === "posts" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400"
           }`}
         >
           <Grid size={20} strokeWidth={activeTab === "posts" ? 2.5 : 2} />
         </button>
-
         <button
           onClick={() => setActiveTab("saved")}
           className={`flex-1 flex justify-center py-3.5 border-b-2 transition-colors ${
-            activeTab === "saved"
-              ? "border-slate-900 text-slate-900"
-              : "border-transparent text-slate-400"
+            activeTab === "saved" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400"
           }`}
         >
           <Bookmark size={20} strokeWidth={activeTab === "saved" ? 2.5 : 2} />
@@ -301,9 +263,7 @@ const UserProfilePage = () => {
       {/* POSTS GRID */}
       {activeTab === "posts" ? (
         posts.length === 0 ? (
-          <div className="text-center py-20 text-slate-400 text-sm">
-            No posts shared yet
-          </div>
+          <div className="text-center py-20 text-slate-400 text-sm">No posts shared yet</div>
         ) : (
           <div className="grid grid-cols-3 gap-0.5 bg-white p-0.5">
             {posts.map((post) => (
@@ -313,11 +273,7 @@ const UserProfilePage = () => {
                 className="aspect-square bg-slate-100 relative group overflow-hidden cursor-pointer"
               >
                 <img
-                  src={
-                    post.image ||
-                    post.thumbnail ||
-                    "https://placehold.co/400x400?text=No+Media"
-                  }
+                  src={post.image || post.thumbnail || "https://placehold.co/400x400?text=No+Media"}
                   alt="User shared content"
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   loading="lazy"
@@ -335,9 +291,7 @@ const UserProfilePage = () => {
           </div>
         )
       ) : (
-        <div className="text-center py-20 text-slate-400 text-sm">
-          Saved posts collection is private
-        </div>
+        <div className="text-center py-20 text-slate-400 text-sm">Saved posts collection is private</div>
       )}
     </div>
   );
