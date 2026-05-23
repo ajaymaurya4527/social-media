@@ -13,16 +13,17 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
+  Trash2, // <-- IMPORT TRASH ICON FOR DELETION
 } from "lucide-react";
 
-import { useNavigate } from "react-router-dom"; // <-- IMPORT NAVIGATE FOR ROUTING
+import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
 import axios from "axios";
 import { io } from "socket.io-client";
 
 const ProfilePage = () => {
   const { backendUrl, setUserAvatar } = useContext(ShopContext);
-  const navigate = useNavigate(); // <-- INITIALIZE NAVIGATE HOOK
+  const navigate = useNavigate();
 
   const [profileData, setProfileData] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
@@ -211,7 +212,7 @@ const ProfilePage = () => {
   // TOGGLE SAVE POST
   // ======================================================
   const handleToggleSave = async (postId, e) => {
-    e.stopPropagation(); // <-- CRITICAL: Stops page redirect when user clicks the save icon!
+    e.stopPropagation();
 
     try {
       const response = await axios.post(
@@ -240,6 +241,32 @@ const ProfilePage = () => {
       }
     } catch (err) {
       console.error("Error toggling save status:", err);
+    }
+  };
+
+  // ======================================================
+  // DELETE POST INTERACTION
+  // ======================================================
+  const handleDeletePost = async (postId, e) => {
+    e.stopPropagation(); // Stops the grid click navigate layout trigger
+
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+      const response = await axios.delete(`${backendUrl}/post/${postId}`, {
+        headers,
+        withCredentials: true,
+      });
+
+      if (response.data.success) {
+        // Optimistically remove from owned posts array
+        setUserPosts((prev) => prev.filter((post) => post._id !== postId));
+        // Remove from saved posts view context if deleted item was also saved
+        setSavedPosts((prev) => prev.filter((post) => post._id !== postId));
+      }
+    } catch (err) {
+      console.error("Error deleting post:", err);
+      alert(err.response?.data?.message || "Could not delete post.");
     }
   };
 
@@ -479,7 +506,7 @@ const ProfilePage = () => {
             return (
               <div
                 key={post._id}
-                onClick={() => navigate(`/post/${post._id}`)} // <-- HERE IS THE DYNAMIC REDIRECT
+                onClick={() => navigate(`/post/${post._id}`)}
                 className="group relative aspect-square bg-slate-100 overflow-hidden cursor-pointer rounded-sm md:rounded-lg"
               >
                 <img
@@ -490,10 +517,23 @@ const ProfilePage = () => {
 
                 {/* HOVER OVERLAY */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3 text-white font-bold">
-                  {/* SAVE ICON ROW */}
-                  <div className="flex justify-end">
+                  {/* ACTIONS TOP ROW */}
+                  <div className="flex justify-between items-center">
+                    {/* Only show trash icon if viewing own posts tab */}
+                    {activeTab === "posts" ? (
+                      <button
+                        onClick={(e) => handleDeletePost(post._id, e)}
+                        className="p-1.5 bg-red-600/60 hover:bg-red-600 rounded-full transition-all text-white"
+                        title="Delete Post"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    ) : (
+                      <div /> // Spacer if not showing delete option
+                    )}
+
                     <button
-                      onClick={(e) => handleToggleSave(post._id, e)} // <-- Uses e.stopPropagation() inside
+                      onClick={(e) => handleToggleSave(post._id, e)}
                       className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full transition-all"
                     >
                       <Bookmark

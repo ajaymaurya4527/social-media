@@ -24,7 +24,6 @@ const Messages = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Core App States
   const [currentUser, setCurrentUser] = useState(null); 
   const [conversations, setConversations] = useState([]); 
   const [selectedUser, setSelectedUser] = useState(null); 
@@ -33,7 +32,6 @@ const Messages = () => {
   const [loadingChats, setLoadingChats] = useState(true);
   const [searchQuery, setSearchQuery] = useState(""); 
 
-  // Image Attachment States
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [isSendingImage, setIsSendingImage] = useState(false);
@@ -42,17 +40,30 @@ const Messages = () => {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   
-  // Handlers for real-time state reference syncing inside socket execution loops
   const selectedUserRef = useRef(null);
   const currentUserRef = useRef(null);
-
-  useEffect(() => { selectedUserRef.current = selectedUser; }, [selectedUser]);
-  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
 
   const token = localStorage.getItem("accessToken");
   const API_BASE = backendUrl; 
 
-  // 1. System Initializer Pipeline
+  useEffect(() => { 
+    selectedUserRef.current = selectedUser; 
+    if (selectedUser?._id) {
+      localStorage.setItem("activeChatUserId", selectedUser._id);
+    } else {
+      localStorage.removeItem("activeChatUserId");
+    }
+  }, [selectedUser]);
+
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
+  useEffect(() => {
+    return () => {
+      localStorage.removeItem("activeChatUserId");
+    };
+  }, []);
+
+  // 1. Initial State Engine Bootstrap Setup
   useEffect(() => {
     if (!backendUrl || !token) {
       setLoadingChats(false);
@@ -63,7 +74,6 @@ const Messages = () => {
       try {
         setLoadingChats(true);
         
-        // Fetch Current Logged-in User Context
         const userRes = await axios.get(`${API_BASE}/users/current-user`, {
           headers: { Authorization: `Bearer ${token}` },
           withCredentials: true,
@@ -73,7 +83,6 @@ const Messages = () => {
         const userData = payload?.user ? payload.user : payload;
         setCurrentUser(userData);
 
-        // Fetch Direct Message Sidebar Inbox Accounts
         let initialContacts = [];
         try {
           const usersRes = await axios.get(`${API_BASE}/users/search`, {
@@ -84,13 +93,12 @@ const Messages = () => {
           initialContacts = (usersRes.data.data || []).map(user => ({
             ...user,
             lastMessage: user.lastMessage || "", 
-            unreadCount: Number(user.unreadCount || 0) // Backend counter mapping
+            unreadCount: Number(user.unreadCount || 0)
           }));
         } catch (searchErr) {
-          console.warn("Suggested users search not fully configured on backend yet.", searchErr);
+          console.warn("Suggested search endpoint initialization failure:", searchErr);
         }
 
-        // Dynamic State Routing Verification Logic
         if (location.state?.chatTargetUser) {
           const target = location.state.chatTargetUser;
           const alreadyExists = initialContacts.some((c) => String(c._id) === String(target._id));
@@ -101,7 +109,6 @@ const Messages = () => {
         }
         setConversations(initialContacts);
 
-        // Spin Up Realtime Socket Node Client Connection Instance
         const socketHost = backendUrl.replace("/api/v1", "");
         socket.current = io(socketHost, {
           withCredentials: true,
@@ -114,12 +121,10 @@ const Messages = () => {
           }
         });
 
-        // REAL-TIME INSTAGRAM STYLE SIDEBAR NOTIFICATION ENGINE (FIXED STALE CLOSURES)
         socket.current.on("receive_message", (incomingMessage) => {
           const activeUser = selectedUserRef.current;
-          const myUser = currentUserRef.current; // Fixed: Target reference check with .current pointer
+          const myUser = currentUserRef.current; 
 
-          // Step A: Active chat window me message instantly append karein
           if (
             activeUser &&
             (String(incomingMessage.senderId) === String(activeUser._id) || 
@@ -129,9 +134,14 @@ const Messages = () => {
               if (prev.some((m) => m._id === incomingMessage._id)) return prev;
               return [...prev, incomingMessage];
             });
+            
+            // If message received belongs to active screen view, notify backend database context via API
+            axios.post(`${API_BASE}/messages/mark-as-read/${activeUser._id}`, {}, {
+              headers: { Authorization: `Bearer ${token}` },
+              withCredentials: true
+            }).catch(e => console.error(e));
           }
           
-          // Step B: Left sidebar updates with dynamic auto-increment badges
           setConversations((prevContacts) => {
             const senderOrReceiverId = String(incomingMessage.senderId) === String(myUser?._id) 
               ? incomingMessage.receiverId 
@@ -146,23 +156,20 @@ const Messages = () => {
             if (index !== -1) {
               const [existingUser] = updatedContacts.splice(index, 1);
               
-              // Core condition check for message updates
               const isChatOpen = activeUser && String(activeUser._id) === String(senderOrReceiverId);
               const isIncoming = String(incomingMessage.senderId) !== String(myUser?._id);
 
               targetUser = {
                 ...existingUser,
                 lastMessage: previewText,
-                // Chat close hone par aur validation data incoming hone par notification match karein
                 unreadCount: (isIncoming && !isChatOpen) ? (Number(existingUser.unreadCount || 0) + 1) : 0
               };
             } else {
-              // Fallback block if user is completely new inside list layout
               const isChatOpen = activeUser && String(activeUser._id) === String(senderOrReceiverId);
               const isIncoming = String(incomingMessage.senderId) !== String(myUser?._id);
 
               targetUser = {
-                ...incomingMessage.senderDetails, // Populating nested schemas
+                ...incomingMessage.senderDetails, 
                 _id: senderOrReceiverId,
                 username: incomingMessage.senderUsername || "New User",
                 fullName: incomingMessage.senderFullName || "User Profile",
@@ -172,16 +179,13 @@ const Messages = () => {
               };
             }
 
-            // Move the updated conversation node to the very top (Just like Instagram)
             return [targetUser, ...updatedContacts];
           });
         });
 
       } catch (err) {
         console.error("Initialization Error across Message Thread Engine:", err);
-      } finally {
-        setLoadingChats(false);
-      }
+      } opacity: { setLoadingChats(false); }
     };
 
     initializeChatSystem();
@@ -191,14 +195,29 @@ const Messages = () => {
     };
   }, [backendUrl, token, location.state]);
 
-  // 2. Room Alignment Engine Synchronizer
+  // 2. Chat Session Synchronization Hook
   useEffect(() => {
     if (!selectedUser || !currentUser || !token) return;
 
-    // Chat window open hote hi badge structure ko instant 0 karein
+    // Reset local view context counters instantly
     setConversations(prev => 
       prev.map(c => String(c._id) === String(selectedUser._id) ? { ...c, unreadCount: 0 } : c)
     );
+
+    // CRITICAL FIX: Trigger backend to clear tracking flags for selected account references
+    const clearUnreadBannersOnBackend = async () => {
+      try {
+        await axios.post(`${API_BASE}/messages/mark-as-read/${selectedUser._id}`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true
+        });
+        
+        // Dispatch local event context notification so footer automatically recalculates states
+        window.dispatchEvent(new Event("unread_counts_reset"));
+      } catch (err) {
+        console.warn("Backend read flag updating failed or route not fully configured:", err);
+      }
+    };
 
     const fetchChatHistory = async () => {
       try {
@@ -213,6 +232,7 @@ const Messages = () => {
       }
     };
 
+    clearUnreadBannersOnBackend();
     fetchChatHistory();
 
     if (socket.current && socket.current.connected) {
@@ -225,7 +245,6 @@ const Messages = () => {
     cancelImageAttachment();
   }, [selectedUser, currentUser, token]);
 
-  // 3. Scroll Anchorage Watchers
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -245,7 +264,6 @@ const Messages = () => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 4. Send Message Handler
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!selectedUser || !currentUser || !token) return;
@@ -307,7 +325,7 @@ const Messages = () => {
             setMessages((prev) => [...prev, res.data.data]);
           }
         } catch (err) {
-          console.error("REST Architecture fallback message delivery failed:", err);
+          console.error("REST fallback message delivery failed:", err);
         }
       }
     }
@@ -324,9 +342,8 @@ const Messages = () => {
   return (
     <div className="h-screen w-full flex bg-white font-sans antialiased overflow-hidden">
       
-      {/* 1. LEFT INBOX SIDEBAR DIRECTORY PANEL */}
+      {/* SIDEBAR VIEW CONTAINER */}
       <div className={`w-full md:w-[390px] border-r border-neutral-200 flex flex-col bg-white shrink-0 h-full ${selectedUser ? "hidden md:flex" : "flex"}`}>
-        {/* Header User Identity */}
         <div className="pt-6 px-5 pb-3 flex flex-col gap-5 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate(-1)}>
@@ -351,7 +368,6 @@ const Messages = () => {
           </div>
         </div>
 
-        {/* Notes horizontal shelf */}
         <div className="px-5 py-3 flex gap-4 overflow-x-auto border-b border-neutral-100 scrollbar-none shrink-0">
           <div className="flex flex-col items-center gap-1.5 min-w-[64px] relative cursor-pointer">
             <div className="w-14 h-14 rounded-full p-0.5 border border-dashed border-neutral-300 flex items-center justify-center">
@@ -369,7 +385,6 @@ const Messages = () => {
           ))}
         </div>
 
-        {/* Conversations Grid View */}
         <div className="flex-1 overflow-y-auto">
           {conversations
             .filter((user) => {
@@ -382,7 +397,7 @@ const Messages = () => {
             })
             .map((user) => {
               const isSelected = selectedUser?._id === user._id;
-              const hasUnread = Number(user.unreadCount) > 0; // Type safety conversion check
+              const hasUnread = Number(user.unreadCount) > 0; 
               return (
                 <div
                   key={user._id}
@@ -401,7 +416,6 @@ const Messages = () => {
                     </p>
                   </div>
 
-                  {/* FIXED INSTAGRAM STYLE BADGE LAYER */}
                   {hasUnread && (
                     <div className="flex flex-col items-center justify-center gap-1 shrink-0 ml-2">
                       <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse mb-0.5"></div>
@@ -416,11 +430,10 @@ const Messages = () => {
         </div>
       </div>
 
-      {/* 2. RIGHT VIEWPORT MAIN MESSAGING CHAT FEED PLATFORM */}
+      {/* MESSAGES CORE VIEWPORT FEED PLATFORM */}
       <div className={`flex-1 flex flex-col bg-white h-screen overflow-hidden relative ${!selectedUser ? "hidden md:flex items-center justify-center" : "flex"}`}>
         {selectedUser ? (
           <div className="w-full h-full flex flex-col overflow-hidden">
-            {/* Header section */}
             <div className="h-[75px] px-6 border-b border-neutral-200 flex items-center justify-between bg-white shrink-0 z-10">
               <div className="flex items-center gap-3.5 min-w-0">
                 <button onClick={() => setSelectedUser(null)} className="md:hidden text-black hover:opacity-60 transition-opacity mr-1 shrink-0">
@@ -441,7 +454,6 @@ const Messages = () => {
               </div>
             </div>
 
-            {/* Core Messages Stream View */}
             <div className="flex-1 overflow-y-auto px-6 py-5 bg-white flex flex-col min-h-0">
               <div className="flex flex-col items-center text-center py-8 border-b border-neutral-50 mb-4 shrink-0">
                 <img src={selectedUser.avatar || "https://placehold.co/100x100?text=User"} alt="" className="w-24 h-24 rounded-full object-cover border border-neutral-100 shadow-xs mb-3" />
@@ -449,7 +461,6 @@ const Messages = () => {
                 <p className="text-sm text-neutral-400 mt-1">{selectedUser.fullName} · Instagram</p>
               </div>
 
-              {/* Chat Message Bubble Mapping Loop */}
               <div className="w-full space-y-3.5 pb-2 flex-1">
                 {messages.map((msg, index) => {
                   const isMe = String(msg.senderId) === String(currentUser?._id);
@@ -482,7 +493,6 @@ const Messages = () => {
               </div>
             </div>
 
-            {/* Input Action Form Footer Element */}
             <div className="p-4 bg-white shrink-0 border-t border-neutral-200 w-full mb-15">
               {imagePreview && (
                 <div className="relative self-start border border-neutral-200 bg-neutral-50 p-1.5 rounded-xl flex items-center gap-2 mb-2 w-max">

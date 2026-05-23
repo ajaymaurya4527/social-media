@@ -86,13 +86,14 @@ const UserProfilePage = () => {
     };
   }, [username, backendUrl, headers, token]);
 
-  // Toggle Follow Action
+  // Toggle Follow Action & Trigger Notification
   const handleFollowToggle = async () => {
     if (!token || !backendUrl || followLoading) return;
 
     const previousIsFollowing = isFollowing;
     const previousFollowersCount = profile?.followersCount || 0;
 
+    // Optimistic UI Update
     setIsFollowing(!previousIsFollowing);
     setProfile((prev) => ({
       ...prev,
@@ -110,7 +111,21 @@ const UserProfilePage = () => {
       );
 
       if (response.data.success) {
-        setIsFollowing(response.data.isFollowing);
+        const currentFollowState = response.data.isFollowing;
+        setIsFollowing(currentFollowState);
+
+        // 🔔 यदि यूज़र ने अभी फॉलो किया है (Unfollow नहीं किया), तो नोटिफिकेशन भेजें
+        if (currentFollowState) {
+          await axios.post(
+            `${backendUrl}/notifications/create`,
+            {
+              targetUserId: profile._id, // जिस यूज़र को फॉलो किया गया है
+              type: "follow",
+              message: "started following you.",
+            },
+            { headers }
+          ).catch(err => console.error("Notification trigger failed:", err));
+        }
       }
     } catch (err) {
       console.error("Failed handling connection shift action:", err);
@@ -124,8 +139,8 @@ const UserProfilePage = () => {
     }
   };
 
-  // Navigates to the chat page and passes this user's information through React Router state
-  const handleInitiateChat = () => {
+  // Navigates to the chat page
+  const handleIssueChat = () => {
     if (!profile) return;
     navigate("/messages", {
       state: {
@@ -232,7 +247,7 @@ const UserProfilePage = () => {
           </button>
 
           <button
-            onClick={handleInitiateChat}
+            onClick={handleIssueChat}
             className="flex-1 bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 text-sm font-semibold py-2 rounded-lg transition-all"
           >
             Message

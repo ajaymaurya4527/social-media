@@ -1,7 +1,9 @@
 import { Post } from "../model/post.model.js";
 import fs from "fs";
-import { User } from "../model/user.model.js"; // Import User for follow logic
+import { User } from "../model/user.model.js"; 
 import { uploadCloudinary ,deleteFromCloudinary } from "../utils/cloudinary.js";
+import { Comment } from "../model/comment.model.js";
+import mongoose from "mongoose";
 
 // 1. Create a Post
 const createPost = async (req, res) => {
@@ -17,7 +19,6 @@ const createPost = async (req, res) => {
 
         const mediaFiles = [];
 
-        // Upload files to Cloudinary
         for (const file of req.files) {
             const localPath = file.path;
             try {
@@ -32,7 +33,6 @@ const createPost = async (req, res) => {
             } catch (uploadError) {
                 console.error("Cloudinary Upload Error:", uploadError);
             } finally {
-                // Clean up local storage regardless of upload success
                 if (fs.existsSync(localPath)) {
                     fs.unlinkSync(localPath);
                 }
@@ -43,10 +43,6 @@ const createPost = async (req, res) => {
             return res.status(400).json({ success: false, message: "Failed to upload media" });
         }
 
-        // --- FIXED TAG LOGIC ---
-        // 1. If tags is "tag1, tag2", it splits them.
-        // 2. .filter(Boolean) removes empty strings if the input was empty.
-        // 3. .map(t => t.trim()) removes accidental spaces.
         const processedTags = tags 
             ? tags.split(",").map(tag => tag.trim()).filter(tag => tag !== "") 
             : [];
@@ -118,13 +114,11 @@ const getUserPosts = async (req, res) => {
     try {
         const { username } = req.params;
 
-        // 1. Find the user by username to get their ID
         const user = await User.findOne({ username });
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        // 2. Fetch posts belonging to that user ID
         const posts = await Post.find({ owner: user._id }).sort("-createdAt");
 
         return res.status(200).json({
@@ -141,7 +135,7 @@ const getUserPosts = async (req, res) => {
 };
 
 
-// 4. Delete a Post (and clean up Cloudinary)
+// 4. Delete a Post
 const deletePost = async (req, res) => {
     try {
         const { postId } = req.params;
@@ -149,12 +143,10 @@ const deletePost = async (req, res) => {
 
         if (!post) return res.status(404).json({ success: false, message: "Post not found" });
 
-        // Security: Check if the requester is the owner
         if (post.owner.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: "Unauthorized to delete this post" });
         }
 
-        // Delete all media files from Cloudinary
         for (const file of post.mediaFiles) {
             await deleteFromCloudinary(file.public_id);
         }
@@ -167,30 +159,46 @@ const deletePost = async (req, res) => {
     }
 };
 
-// 5. Get Home Feed (Posts from people you follow)
+// 5. Get Home Feed (Global Engine Configuration)
 const getHomeFeed = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
+        const userId = req.user._id;
+        const user = await User.findById(userId);
         
-        // Find posts where the owner is in the user's following list
-        const posts = await Post.find({
-            owner: { $in: user.following },
-            isPublished: true
-        })
-        .populate("owner", "username avatar") // Attach user info to post
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const rawPosts = await Post.find({ isPublished: true })
+        .populate("owner", "username avatar followers") 
         .sort("-createdAt");
+
+        const posts = rawPosts.map(post => {
+            const postObj = post.toObject();
+            
+            postObj.isLikedExplicitly = post.likes ? post.likes.some(id => id.toString() === userId.toString()) : false;
+            postObj.isSavedByMe = user.savedPosts ? user.savedPosts.some(id => id.toString() === post._id.toString()) : false;
+            
+            if (postObj.owner) {
+                postObj.owner.isFollowing = post.owner.followers 
+                    ? post.owner.followers.some(id => id.toString() === userId.toString()) 
+                    : false;
+            }
+            
+            return postObj;
+        });
 
         return res.status(200).json({
             success: true,
             data: posts,
-            message: "Home feed fetched successfully"
+            message: "Global home feed parsed successfully"
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// 6. Toggle Follow (User follow logic)
+// 6. Toggle Follow
 const toggleFollow = async (req, res) => {
     try {
         const { userIdToFollow } = req.params;
@@ -208,11 +216,9 @@ const toggleFollow = async (req, res) => {
         const isFollowing = me.following.includes(userIdToFollow);
 
         if (isFollowing) {
-            // Unfollow
             me.following.pull(userIdToFollow);
             userToFollow.followers.pull(myId);
         } else {
-            // Follow
             me.following.push(userIdToFollow);
             userToFollow.followers.push(myId);
         }
@@ -228,17 +234,15 @@ const toggleFollow = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
-import mongoose from "mongoose";
 
+// 7. Toggle Save Post
 const toggleSavePost = async (req, res) => {
     const { postId } = req.params;
     const userId = req.user._id;
 
-    // 1. Convert string ID to ObjectId for reliable comparison
     const objectPostId = new mongoose.Types.ObjectId(postId);
     const user = await User.findById(userId);
 
-    // 2. Use .some() with .equals() for ObjectId comparison
     const isSaved = user.savedPosts.some(id => id.equals(objectPostId));
 
     if (isSaved) {
@@ -253,11 +257,11 @@ const toggleSavePost = async (req, res) => {
     });
 };
 
+// 8. Get Saved Posts
 const getSavedPosts = async (req, res) => {
-    // 3. Ensure you use .populate() so the frontend gets the full post object, not just the ID
     const user = await User.findById(req.user._id).populate({
         path: "savedPosts",
-        options: { sort: { createdAt: -1 } } // Show newest saves first
+        options: { sort: { createdAt: -1 } } 
     });
 
     if (!user) {
@@ -266,7 +270,75 @@ const getSavedPosts = async (req, res) => {
 
     res.status(200).json({ 
         success: true, 
-        data: user.savedPosts // This is now an array of Post objects
+        data: user.savedPosts 
     });
 };
-export { createPost, toggleLike, getUserPosts, deletePost, getHomeFeed, toggleFollow ,toggleSavePost,getSavedPosts };
+
+// 9. Add Comment (MODIFIED: Returns populated comment object directly to Frontend)
+const addComment = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { content } = req.body;
+        const userId = req.user._id;
+
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: "Comment message trace is mandatory" });
+        }
+
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ success: false, message: "Target post document missing" });
+        }
+
+        let comment = await Comment.create({
+            content,
+            post: postId,
+            owner: userId
+        });
+
+        // Populate owner metadata context before transmitting back to UI interface
+        comment = await comment.populate("owner", "username avatar");
+
+        post.commentCount = (post.commentCount || 0) + 1;
+        await post.save();
+
+        return res.status(201).json({
+            success: true,
+            data: comment,
+            message: "Comment structural update saved successfully"
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// 10. NEW: Get Post Comments
+const getPostComments = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const comments = await Comment.find({ post: postId })
+            .populate("owner", "username avatar")
+            .sort("createdAt"); // Oldest comments first
+
+        return res.status(200).json({
+            success: true,
+            data: comments,
+            message: "Comments fetched successfully"
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+export { 
+    createPost, 
+    toggleLike, 
+    getUserPosts, 
+    deletePost, 
+    getHomeFeed, 
+    toggleFollow, 
+    toggleSavePost, 
+    getSavedPosts, 
+    addComment,
+    getPostComments 
+};

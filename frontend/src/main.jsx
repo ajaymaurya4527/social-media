@@ -16,6 +16,9 @@ import SearchPage from './pages/SearchPage.jsx';
 import UserProfilePage from './pages/UserProfilePage.jsx';
 import PostDetail from './pages/PostDetail.jsx'; // <-- 1. IMPORT YOUR NEW DETAIL PAGE
 import Messages from './pages/MessagePage.jsx';
+import HomeFeed from './pages/HomePage.jsx';
+import ReelsPage from './pages/ReelsPage.jsx';
+import NotificationPage from './pages/NotificationPage.jsx';
 
 const Placeholder = ({ title }) => (
   <div className="pt-24 text-center">
@@ -33,9 +36,7 @@ const router = createBrowserRouter([
         index: true,
         element: (
           <AuthLayout authentication={true}>
-            <div className="pt-24 text-center text-5xl font-bold">
-              <h1>Welcome to Vibe</h1>
-            </div>
+            <HomeFeed />
           </AuthLayout>
         )
       },
@@ -68,7 +69,7 @@ const router = createBrowserRouter([
         path: "reels",
         element: (
           <AuthLayout authentication={true}>
-            <Placeholder title="Reels" />
+            <ReelsPage />
           </AuthLayout>
         )
       },
@@ -97,10 +98,10 @@ const router = createBrowserRouter([
         )
       },
       {
-        path: "shop",
+        path: "notifications",
         element: (
           <AuthLayout authentication={true}>
-            <Placeholder title="shop" />
+            <NotificationPage />
           </AuthLayout>
         )
       },

@@ -25,6 +25,7 @@ import userRouter from "./routes/user.route.js";
 import postRouter from "./routes/post.route.js";
 import subscriptionRouter from "./routes/subscription.route.js";
 import messageRouter from "./routes/message.route.js";
+import notificationRouter from "./routes/notification.route.js"
 
 
 // route declaration
@@ -32,5 +33,6 @@ app.use("/api/v1/users", userRouter); // url make http://localhost:7000/api/v1/u
 app.use("/api/v1/post", postRouter);
 app.use("/api/v1/subscription", subscriptionRouter);
 app.use("/api/v1/messages", messageRouter);
+app.use("/api/v1/notifications",notificationRouter);
 
 export default app;
