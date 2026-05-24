@@ -1,92 +1,112 @@
-import dotenv from "dotenv"; 
-import { createServer } from "http"; 
-import { Server } from "socket.io"; 
+import dotenv from "dotenv";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
 import connectDB from "./db/index.js";
 import app from "./app.js";
-import { Message } from "./model/message.model.js"; 
+
+import { Message } from "./model/message.model.js";
 
 dotenv.config({ path: "./.env" });
 
 const httpServer = createServer(app);
 
-// Initialize Socket.io cluster attached onto the native platform port instances
 const io = new Server(httpServer, {
   cors: {
-    origin: true, 
+    origin: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
   },
 });
 
+// Make io accessible inside controllers
 app.set("io", io);
 
-const activeUsers = new Map();
-
 io.on("connection", (socket) => {
-  console.log(`⚡ Socket Active Connection Hooked: ${socket.id}`);
+  console.log("Socket connected:", socket.id);
 
-  // Map tracking variables to active user connections
+  // Join user private notification room
   socket.on("join_private_room", (userId) => {
-    if (userId) {
-      socket.join(userId.toString());
-      activeUsers.set(userId.toString(), socket.id); 
-      console.log(`👥 Context registration completed for user room ID: ${userId}`);
-    }
+    if (!userId) return;
+
+    socket.join(userId.toString());
+
+    console.log(`User joined private room: ${userId}`);
   });
 
-  // Dual sorted keys generation mapping conversational bridges
+  // Join chat room between two users
   socket.on("join_chat", ({ senderId, receiverId }) => {
-    if (senderId && receiverId) {
-      const roomId = [senderId.toString(), receiverId.toString()].sort().join("_");
-      socket.join(roomId);
-      console.log(`💬 Conversational bridge attached over virtual room ID: ${roomId}`);
-    }
+    if (!senderId || !receiverId) return;
+
+    const roomId = [senderId.toString(), receiverId.toString()]
+      .sort()
+      .join("_");
+
+    socket.join(roomId);
+
+    console.log(`Joined chat room: ${roomId}`);
   });
 
-  // Transaction delivery engine pipeline
+  // Send message
   socket.on("send_message", async (data) => {
-    const { senderId, receiverId, messageText } = data;
-    if (!senderId || !receiverId || !messageText?.trim()) return;
-
-    const roomId = [senderId.toString(), receiverId.toString()].sort().join("_");
-
     try {
-      const savedMessage = await Message.create({
+      const { senderId, receiverId, messageText } = data;
+
+      if (
+        !senderId ||
+        !receiverId ||
+        !messageText ||
+        !messageText.trim()
+      ) {
+        return;
+      }
+
+      const roomId = [senderId.toString(), receiverId.toString()]
+        .sort()
+        .join("_");
+
+      // Save message
+      const message = await Message.create({
         senderId,
         receiverId,
         messageText: messageText.trim(),
+        isRead: false,
       });
 
-      // Transmit directly into the synchronized virtual channel room
-      io.to(roomId).emit("receive_message", savedMessage);
+      // Populate sender and receiver
+      const populatedMessage = await Message.findById(message._id)
+        .populate("senderId", "username avatar fullName")
+        .populate("receiverId", "username avatar fullName");
 
-      // Trigger standard banner notification payload if the recipient is online but navigating another screen area
-      const receiverSocketId = activeUsers.get(receiverId.toString());
-      if (receiverSocketId) {
-        socket.to(receiverSocketId).emit("new_message_notification", savedMessage);
-      }
+      // Real-time chat update
+      io.to(roomId).emit("receive_message", populatedMessage);
+
+      // Real-time unread notification
+      io.to(receiverId.toString()).emit(
+        "new_message_notification",
+        populatedMessage
+      );
+
+      console.log("Message sent successfully");
     } catch (error) {
-      console.error("❌ Mongoose transaction delivery cluster execution error:", error.message);
+      console.log("Socket message error:", error.message);
     }
   });
 
   socket.on("disconnect", () => {
-    for (let [userId, socketId] of activeUsers.entries()) {
-      if (socketId === socket.id) {
-        activeUsers.delete(userId);
-        break;
-      }
-    }
-    console.log(`❌ Socket link closed: ${socket.id}`);
+    console.log("Socket disconnected:", socket.id);
   });
 });
 
+// Connect DB and start server
 connectDB()
   .then(() => {
-    httpServer.listen(process.env.PORT || 7000, () => {
-      console.log(`Server is running at port : ${process.env.PORT || 7000}`);
+    const PORT = process.env.PORT || 7000;
+
+    httpServer.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.log("MONGO db connection failed !!! ", err);
+    console.log("MongoDB connection failed:", err);
   });

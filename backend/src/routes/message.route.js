@@ -1,12 +1,24 @@
 import { Router } from "express";
-import { sendMessage, getChatHistory } from "../controllers/message.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js"; // Standard JWT validation middleware
+
+import {
+  sendMessage,
+  getChatHistory,
+  markAsRead,
+  getUnreadCount,
+} from "../controllers/message.controller.js";
+
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
-router.use(verifyJWT); // Secure all messaging endpoints
+router.use(verifyJWT);
 
-router.route("/send").post(sendMessage);
-router.route("/history/:receiverId").get(getChatHistory);
+router.post("/send", sendMessage);
+
+router.get("/history/:receiverId", getChatHistory);
+
+router.post("/mark-as-read/:receiverId", markAsRead);
+
+router.get("/unread-count", getUnreadCount);
 
 export default router;

@@ -18,6 +18,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
 import axios from "axios";
 
+// 1. Import toast configuration
+import toast from "react-hot-toast";
+
 const UserProfilePage = () => {
   const { username } = useParams();
   const navigate = useNavigate();
@@ -70,6 +73,9 @@ const UserProfilePage = () => {
       } catch (err) {
         if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
           console.error("Error loading user profile:", err);
+          
+          // 2. Alert on profile query breakdown
+          toast.error("Failed to load user profile configuration.");
         }
       } finally {
         if (isMounted) {
@@ -114,6 +120,13 @@ const UserProfilePage = () => {
         const currentFollowState = response.data.isFollowing;
         setIsFollowing(currentFollowState);
 
+        // 3. Status notice context updates on success
+        if (currentFollowState) {
+          toast.success(`Following @${username}`);
+        } else {
+          toast.success(`Unfollowed @${username}`);
+        }
+
         // 🔔 यदि यूज़र ने अभी फॉलो किया है (Unfollow नहीं किया), तो नोटिफिकेशन भेजें
         if (currentFollowState) {
           await axios.post(
@@ -124,11 +137,17 @@ const UserProfilePage = () => {
               message: "started following you.",
             },
             { headers }
-          ).catch(err => console.error("Notification trigger failed:", err));
+          ).catch(err => {
+            console.error("Notification trigger failed:", err);
+          });
         }
       }
     } catch (err) {
       console.error("Failed handling connection shift action:", err);
+      
+      // 4. Alert user on failure fallback
+      toast.error(err.response?.data?.message || "Action failed. Restoring data state.");
+      
       setIsFollowing(previousIsFollowing);
       setProfile((prev) => ({
         ...prev,

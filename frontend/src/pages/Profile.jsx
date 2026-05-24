@@ -13,13 +13,14 @@ import {
   Heart,
   MessageCircle,
   MoreHorizontal,
-  Trash2, // <-- IMPORT TRASH ICON FOR DELETION
+  Trash2,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
 import axios from "axios";
 import { io } from "socket.io-client";
+import toast from "react-hot-toast"; // <-- IMPORT REACT HOT TOAST
 
 const ProfilePage = () => {
   const { backendUrl, setUserAvatar } = useContext(ShopContext);
@@ -122,6 +123,7 @@ const ProfilePage = () => {
         }
       } catch (err) {
         console.error("Error loading profile:", err);
+        toast.error("Failed to load profile details.");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -199,10 +201,11 @@ const ProfilePage = () => {
         }));
 
         setIsEditing(false);
+        toast.success("Profile updated successfully!"); // <-- TOAST SUCCESS
       }
     } catch (err) {
       console.error("Update failed:", err);
-      alert(err.response?.data?.message || "Could not update profile.");
+      toast.error(err.response?.data?.message || "Could not update profile."); // <-- TOAST ERROR
     } finally {
       setIsUpdating(false);
     }
@@ -225,9 +228,9 @@ const ProfilePage = () => {
       );
 
       if (response.data.success) {
-        setSavedPosts((prev) => {
-          const alreadySaved = prev.some((post) => post._id === postId);
+        const alreadySaved = savedPosts.some((post) => post._id === postId);
 
+        setSavedPosts((prev) => {
           if (alreadySaved) {
             return prev.filter((post) => post._id !== postId);
           }
@@ -238,9 +241,17 @@ const ProfilePage = () => {
           if (!postToAdd) return prev;
           return [...prev, postToAdd];
         });
+
+        // <-- CONFIG TOAST FEEDBACK BASED ON ACTION
+        if (alreadySaved) {
+          toast.success("Removed from saved items");
+        } else {
+          toast.success("Post saved successfully!");
+        }
       }
     } catch (err) {
       console.error("Error toggling save status:", err);
+      toast.error("Could not process save request.");
     }
   };
 
@@ -248,7 +259,7 @@ const ProfilePage = () => {
   // DELETE POST INTERACTION
   // ======================================================
   const handleDeletePost = async (postId, e) => {
-    e.stopPropagation(); // Stops the grid click navigate layout trigger
+    e.stopPropagation(); 
 
     if (!window.confirm("Are you sure you want to delete this post?")) return;
 
@@ -259,14 +270,13 @@ const ProfilePage = () => {
       });
 
       if (response.data.success) {
-        // Optimistically remove from owned posts array
         setUserPosts((prev) => prev.filter((post) => post._id !== postId));
-        // Remove from saved posts view context if deleted item was also saved
         setSavedPosts((prev) => prev.filter((post) => post._id !== postId));
+        toast.success("Post deleted successfully."); // <-- TOAST SUCCESS
       }
     } catch (err) {
       console.error("Error deleting post:", err);
-      alert(err.response?.data?.message || "Could not delete post.");
+      toast.error(err.response?.data?.message || "Could not delete post."); // <-- TOAST ERROR
     }
   };
 
@@ -285,10 +295,11 @@ const ProfilePage = () => {
       );
 
       localStorage.clear();
+      toast.success("Logged out successfully");
       window.location.href = "/login";
     } catch (error) {
       console.error(error);
-      alert("Logout failed");
+      toast.error("Logout failed");
     }
   };
 
@@ -519,7 +530,6 @@ const ProfilePage = () => {
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3 text-white font-bold">
                   {/* ACTIONS TOP ROW */}
                   <div className="flex justify-between items-center">
-                    {/* Only show trash icon if viewing own posts tab */}
                     {activeTab === "posts" ? (
                       <button
                         onClick={(e) => handleDeletePost(post._id, e)}
@@ -529,7 +539,7 @@ const ProfilePage = () => {
                         <Trash2 size={16} />
                       </button>
                     ) : (
-                      <div /> // Spacer if not showing delete option
+                      <div />
                     )}
 
                     <button

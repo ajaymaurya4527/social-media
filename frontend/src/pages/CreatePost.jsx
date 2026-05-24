@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import axios from "axios";
+import toast from "react-hot-toast"; // Imported react-hot-toast
 
 import { ShopContext } from "../context/ShopContext";
 
@@ -91,17 +92,14 @@ const CreatePost = () => {
       e.target.files || []
     );
 
-    if (!files.length) return;
+  if (!files.length) return;
 
     // Total file limit
     if (
       mediaFiles.length + files.length >
       MAX_FILES
     ) {
-      alert(
-        `You can upload maximum ${MAX_FILES} files`
-      );
-
+      toast.error(`You can upload maximum ${MAX_FILES} files`); // Replaced alert with toast
       return;
     }
 
@@ -113,9 +111,7 @@ const CreatePost = () => {
           file.type.startsWith("video/");
 
         if (!isValid) {
-          alert(
-            `${file.name} is not supported`
-          );
+          toast.error(`${file.name} is not supported`); // Replaced alert with toast
         }
 
         return isValid;
@@ -172,15 +168,13 @@ const CreatePost = () => {
 
     // Validation
     if (!mediaFiles.length) {
-      return alert(
-        "Please select at least one image or video"
-      );
+      toast.error("Please select at least one image or video"); // Replaced alert with toast
+      return;
     }
 
     if (!token) {
-      return alert(
-        "Please login first"
-      );
+      toast.error("Please login first"); // Replaced alert with toast
+      return;
     }
 
     try {
@@ -229,14 +223,12 @@ const CreatePost = () => {
         formData,
         {
           headers,
-
           withCredentials: true,
         }
       );
 
       if (response.data.success) {
-        alert("Post created successfully");
-
+        toast.success("Post created successfully"); // Replaced alert with toast
         navigate("/");
       }
     } catch (error) {
@@ -245,10 +237,10 @@ const CreatePost = () => {
         error
       );
 
-      alert(
+      toast.error(
         error.response?.data?.message ||
           "Something went wrong"
-      );
+      ); // Replaced alert with toast
     } finally {
       setLoading(false);
     }

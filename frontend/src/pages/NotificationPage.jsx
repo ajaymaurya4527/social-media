@@ -3,6 +3,7 @@ import { ArrowLeft, Bell, UserPlus, Heart, MessageCircle, Trash2 } from "lucide-
 import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const NotificationPage = () => {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ const NotificationPage = () => {
         }
       } catch (err) {
         console.error("Error fetching notifications:", err);
+        toast.error("Failed to load notifications");
       } finally {
         setLoading(false);
       }
@@ -56,9 +58,17 @@ const NotificationPage = () => {
             id === null || notif._id === id ? { ...notif, isRead: true } : notif
           )
         );
+        
+        // सफलता मिलने पर टोस्ट मैसेज
+        if (id) {
+          toast.success("Notification marked as read");
+        } else {
+          toast.success("All notifications marked as read");
+        }
       }
     } catch (err) {
       console.error("Failed to update read status:", err);
+      toast.error("Something went wrong");
     }
   };
 
@@ -73,9 +83,11 @@ const NotificationPage = () => {
 
         if (response.data.success) {
           setNotifications([]);
+          toast.success("All notifications cleared");
         }
       } catch (err) {
         console.error("Failed to clear notifications:", err);
+        toast.error("Failed to clear notifications");
       }
     }
   };

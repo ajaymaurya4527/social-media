@@ -17,6 +17,8 @@ import {
   EyeOff,
 } from "lucide-react";
 
+import toast from "react-hot-toast";
+
 import { ShopContext } from "../context/ShopContext";
 
 const Login = () => {
@@ -80,13 +82,13 @@ const Login = () => {
       formData.identifier.trim();
 
     if (!trimmedIdentifier) {
-      return alert(
+      return toast.error(
         "Username or Email is required"
       );
     }
 
     if (!formData.password) {
-      return alert("Password is required");
+      return toast.error("Password is required");
     }
 
     // ======================================================
@@ -129,6 +131,12 @@ const Login = () => {
           response.data.refreshToken
         );
 
+        // Success Notification
+        toast.success(
+          response.data.message ||
+            "Logged in successfully!"
+        );
+
         // ======================================================
         // REDIRECT
         // ======================================================
@@ -138,7 +146,7 @@ const Login = () => {
     } catch (error) {
       console.error("Login failed:", error);
 
-      alert(
+      toast.error(
         error.response?.data?.message ||
           "Login failed"
       );

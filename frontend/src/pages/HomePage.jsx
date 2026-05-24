@@ -16,6 +16,7 @@ import {
   UserCheck,
   X
 } from "lucide-react";
+import { toast, Toaster } from "react-hot-toast";
 
 import { ShopContext } from "../context/ShopContext"; 
 
@@ -37,7 +38,7 @@ const HomeFeed = () => {
   const [modalCommentInput, setModalCommentInput] = useState("");
 
   const token = localStorage.getItem("accessToken");
-  const API_BASE = backendUrl; // "http://localhost:7000/api/v1"
+  const API_BASE = backendUrl;
 
   // 1. Fetch Feed & Logged-In User Profile Data
   useEffect(() => {
@@ -77,7 +78,7 @@ const HomeFeed = () => {
     }
   }, [backendUrl, token, API_BASE]);
 
-  // 2. Handle Follow / Unfollow Actions (WITH NOTIFICATION TRIGGER)
+  // 2. Handle Follow / Unfollow Actions
   const handleFollowToggle = async (postOwnerId, originalFollowState) => {
     try {
       const response = await axios.post(`${API_BASE}/post/follow/${postOwnerId}`, {}, {
@@ -86,7 +87,8 @@ const HomeFeed = () => {
       });
 
       if (response.data.success) {
-        // TRIGGER NOTIFICATION: If user just followed this profile
+        toast.success(originalFollowState ? "Unfollowed user" : "Following user");
+        
         if (!originalFollowState) {
           try {
             await axios.post(`${API_BASE}/notifications/create`, {
@@ -105,21 +107,19 @@ const HomeFeed = () => {
         setPosts((prevPosts) =>
           prevPosts.map((post) => {
             if (post.owner?._id === postOwnerId) {
-              return {
-                ...post,
-                isOwnerFollowed: !originalFollowState
-              };
+              return { ...post, isOwnerFollowed: !originalFollowState };
             }
             return post;
           })
         );
       }
     } catch (err) {
+      toast.error("Action failed");
       console.error("Follow framework interaction failure:", err);
     }
   };
 
-  // 3. Handle Like Interaction (WITH NOTIFICATION TRIGGER)
+  // 3. Handle Like Interaction
   const handleLikeToggle = async (postId) => {
     try {
       const response = await axios.post(`${API_BASE}/post/like/${postId}`, {}, {
@@ -130,11 +130,8 @@ const HomeFeed = () => {
       if (response.data.success) {
         const { isLiked } = response.data.data;
         const myId = currentUser?._id || "current_user_placeholder_id";
-
-        // Find the target post to check its owner
         const targetPost = posts.find(p => p._id === postId);
 
-        // TRIGGER NOTIFICATION: If liked, and the post doesn't belong to the current user
         if (isLiked && targetPost && targetPost.owner?._id !== currentUser?._id) {
           try {
             await axios.post(`${API_BASE}/notifications/create`, {
@@ -155,9 +152,7 @@ const HomeFeed = () => {
             if (post._id === postId) {
               return {
                 ...post,
-                likes: isLiked 
-                  ? [...(post.likes || []), myId]
-                  : (post.likes || []).filter(id => id !== myId),
+                likes: isLiked ? [...(post.likes || []), myId] : (post.likes || []).filter(id => id !== myId),
                 isLikedExplicitly: isLiked 
               };
             }
@@ -166,6 +161,7 @@ const HomeFeed = () => {
         );
       }
     } catch (err) {
+      toast.error("Like action failed");
       console.error("Like toggle exception intercept:", err);
     }
   };
@@ -181,19 +177,19 @@ const HomeFeed = () => {
       if (response.data.success) {
         const msg = response.data.message;
         const isNowSaved = msg.includes("Saved");
+        toast.success(isNowSaved ? "Saved to collection" : "Removed from collection");
 
         setPosts((prevPosts) =>
-          prevPosts.map((post) => 
-            post._id === postId ? { ...post, isSavedByMe: isNowSaved } : post
-          )
+          prevPosts.map((post) => post._id === postId ? { ...post, isSavedByMe: isNowSaved } : post)
         );
       }
     } catch (err) {
+      toast.error("Save action failed");
       console.error("Error calling save collection endpoint:", err);
     }
   };
 
-  // 5. Open Comments Overlay Stream Engine
+  // 5. Open Comments Overlay
   const openCommentsModal = async (post) => {
     setSelectedPostForComments(post);
     setModalComments([]);
@@ -207,13 +203,13 @@ const HomeFeed = () => {
         setModalComments(response.data.data);
       }
     } catch (err) {
-      console.error("Failed loading comments for target modal context element:", err);
+      console.error("Failed loading comments:", err);
     } finally {
       setModalLoading(false);
     }
   };
 
-  // 6. Handle Comment Submission (WITH NOTIFICATION TRIGGER)
+  // 6. Handle Comment Submission
   const handleCommentSubmit = async (e, postId, fallbackText = null) => {
     e.preventDefault();
     const commentText = fallbackText ? fallbackText.trim() : commentInputs[postId]?.trim();
@@ -228,10 +224,10 @@ const HomeFeed = () => {
       });
 
       if (response.data.success) {
+        toast.success("Comment posted");
         const createdComment = response.data.data;
         const targetPost = posts.find(p => p._id === postId);
 
-        // TRIGGER NOTIFICATION: If commenter is not the owner of the post
         if (targetPost && targetPost.owner?._id !== currentUser?._id) {
           try {
             await axios.post(`${API_BASE}/notifications/create`, {
@@ -247,30 +243,25 @@ const HomeFeed = () => {
           }
         }
 
-        // Atomically increment metric counts inside layout feed arrays
         setPosts((prevPosts) =>
           prevPosts.map((post) => {
             if (post._id === postId) {
-              return {
-                ...post,
-                commentCount: (post.commentCount || 0) + 1
-              };
+              return { ...post, commentCount: (post.commentCount || 0) + 1 };
             }
             return post;
           })
         );
 
-        // Update modal list instantly if open
         if (selectedPostForComments && selectedPostForComments._id === postId) {
           setModalComments((prev) => [...prev, createdComment]);
         }
 
-        // Clean up both states simultaneously
         setModalCommentInput("");
         setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
       }
     } catch (err) {
-      console.error("Error committing comment trace execution context array:", err);
+      toast.error("Failed to post comment");
+      console.error("Error committing comment:", err);
     }
   };
 
@@ -309,6 +300,7 @@ const HomeFeed = () => {
 
   return (
     <div className="min-h-screen w-full bg-neutral-50/30 text-neutral-900 flex flex-col items-center overflow-y-auto pb-24">
+      <Toaster position="top-center" />
       
       <header className="w-full max-w-[620px] h-16 border-b border-neutral-100 flex items-center justify-between px-4 sm:px-6 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="flex flex-col">

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ShopContext } from "../context/ShopContext";
 import { Heart, MessageCircle, Loader2, ArrowLeft, Bookmark } from "lucide-react";
+import toast from "react-hot-toast";
 
 const PostDetail = () => {
   const { id } = useParams();
@@ -33,7 +34,9 @@ const PostDetail = () => {
           const postData = response.data.data || response.data.post || response.data;
           setPost(postData);
         } else {
-          setErrorMsg("Could not retrieve post records.");
+          const errMsg = "Could not retrieve post records.";
+          setErrorMsg(errMsg);
+          toast.error(errMsg);
         }
       } catch (error) {
         console.error("Error fetching post detail:", error);
@@ -44,7 +47,9 @@ const PostDetail = () => {
           ? "Post not found. Please verify the URL endpoint route configuration on your backend."
           : "An error occurred while loading this post.";
           
-        setErrorMsg(backendMessage || fallbackMessage);
+        const activeError = backendMessage || fallbackMessage;
+        setErrorMsg(activeError);
+        toast.error(activeError);
       } finally {
         setLoading(false);
       }

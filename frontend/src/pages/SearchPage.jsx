@@ -18,6 +18,9 @@ import { useNavigate } from "react-router";
 
 import axios from "axios";
 
+// 1. Import toast
+import toast from "react-hot-toast";
+
 const SearchPage = () => {
   const { backendUrl } = useContext(ShopContext);
 
@@ -98,6 +101,12 @@ const SearchPage = () => {
           console.error(
             "Error retrieving search results:",
             err
+          );
+          
+          // 2. Trigger error notification
+          toast.error(
+            err.response?.data?.message || 
+            "Failed to fetch search results. Please try again."
           );
         }
       } finally {

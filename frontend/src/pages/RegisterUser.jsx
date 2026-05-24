@@ -15,6 +15,8 @@ import {
   EyeOff,
 } from "lucide-react";
 
+import toast from "react-hot-toast";
+
 import { ShopContext } from "../context/ShopContext";
 
 const Register = () => {
@@ -90,7 +92,7 @@ const Register = () => {
 
     // OPTIONAL FILE SIZE VALIDATION (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      return alert("File size must be below 5MB");
+      return toast.error("File size must be below 5MB");
     }
 
     setFiles((prev) => ({
@@ -114,17 +116,17 @@ const Register = () => {
     // ======================================================
 
     if (formData.password !== formData.confirmPassword) {
-      return alert("Passwords do not match!");
+      return toast.error("Passwords do not match!");
     }
 
     if (formData.password.length < 6) {
-      return alert(
+      return toast.error(
         "Password must be at least 6 characters"
       );
     }
 
     if (!files.avatar) {
-      return alert("Avatar is required");
+      return toast.error("Avatar is required");
     }
 
     try {
@@ -160,14 +162,14 @@ const Register = () => {
       );
 
       if (response.data.success) {
-        alert("Registration Successful!");
+        toast.success("Registration Successful!");
 
         navigate("/login");
       }
     } catch (error) {
       console.error("Registration error:", error);
 
-      alert(
+      toast.error(
         error.response?.data?.message ||
           "Registration failed"
       );
