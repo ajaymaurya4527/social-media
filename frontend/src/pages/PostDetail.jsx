@@ -55,7 +55,7 @@ const PostDetail = () => {
       }
 
     } catch (error) {
-      console.log(error);
+      //console.log(error);
       toast.error("Failed to load post");
     } finally {
       setLoading(false);

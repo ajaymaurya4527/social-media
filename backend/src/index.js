@@ -23,7 +23,7 @@ const io = new Server(httpServer, {
 app.set("io", io);
 
 io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
+  //console.log("Socket connected:", socket.id);
 
   // Join user private notification room
   socket.on("join_private_room", (userId) => {
@@ -31,7 +31,7 @@ io.on("connection", (socket) => {
 
     socket.join(userId.toString());
 
-    console.log(`User joined private room: ${userId}`);
+    //console.log(`User joined private room: ${userId}`);
   });
 
   // Join chat room between two users
@@ -44,7 +44,7 @@ io.on("connection", (socket) => {
 
     socket.join(roomId);
 
-    console.log(`Joined chat room: ${roomId}`);
+    //console.log(`Joined chat room: ${roomId}`);
   });
 
   // Send message
@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
   }
 });
   socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
+    //console.log("Socket disconnected:", socket.id);
   });
 });
 
