@@ -330,6 +330,41 @@ const getPostComments = async (req, res) => {
     }
 };
 
+
+const getSinglePost = async (req, res) => {
+    try {
+        const { postId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(postId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid post id"
+            });
+        }
+
+        const post = await Post.findById(postId)
+            .populate("owner", "username avatar");
+
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: "Post not found"
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: post
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 export { 
     createPost, 
     toggleLike, 
@@ -340,5 +375,6 @@ export {
     toggleSavePost, 
     getSavedPosts, 
     addComment,
-    getPostComments 
+    getPostComments ,
+    getSinglePost
 };

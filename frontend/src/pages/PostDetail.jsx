@@ -1,176 +1,378 @@
+
 import React, { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+
+import axios from "../utils/axiosInstance";
+
 import { ShopContext } from "../context/ShopContext";
-import { Heart, MessageCircle, Loader2, ArrowLeft, Bookmark } from "lucide-react";
+
+import {
+  Heart,
+  MessageCircle,
+  Bookmark,
+  Send,
+  X,
+} from "lucide-react";
+
 import toast from "react-hot-toast";
 
 const PostDetail = () => {
   const { id } = useParams();
+
   const navigate = useNavigate();
+
   const { backendUrl } = useContext(ShopContext);
-  
+
   const [post, setPost] = useState(null);
+
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    const fetchPost = async () => {
-      try {
-        setLoading(true);
-        setErrorMsg("");
-        
-        const token = localStorage.getItem("accessToken");
+  const [comments, setComments] = useState([]);
 
-        const response = await axios.get(`${backendUrl}/post/${id}`, {
+  const [commentText, setCommentText] = useState("");
+
+  const [isLiked, setIsLiked] = useState(false);
+
+  const [isSaved, setIsSaved] = useState(false);
+
+  // FETCH POST
+  const fetchPost = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+
+      const response = await axios.get(
+        `${backendUrl}/post/${id}`,
+        {
           headers: {
-            Authorization: `Bearer ${token}`, // <-- Pass Auth Header to prevent 401 Unauthorized
+            Authorization: `Bearer ${token}`,
           },
           withCredentials: true,
-        });
-
-        if (response.data.success) {
-          // Fallback chain: Extract data safely regardless of your backend syntax structure
-          const postData = response.data.data || response.data.post || response.data;
-          setPost(postData);
-        } else {
-          const errMsg = "Could not retrieve post records.";
-          setErrorMsg(errMsg);
-          toast.error(errMsg);
         }
-      } catch (error) {
-        console.error("Error fetching post detail:", error);
-        
-        // Capture direct error explanations from your server configuration if they exist
-        const backendMessage = error.response?.data?.message;
-        const fallbackMessage = error.response?.status === 404 
-          ? "Post not found. Please verify the URL endpoint route configuration on your backend."
-          : "An error occurred while loading this post.";
-          
-        const activeError = backendMessage || fallbackMessage;
-        setErrorMsg(activeError);
-        toast.error(activeError);
-      } finally {
-        setLoading(false);
-      }
-    };
+      );
 
+      if (response.data.success) {
+        setPost(response.data.data);
+      }
+
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to load post");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FETCH COMMENTS
+  const fetchComments = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+
+      const res = await axios.get(
+        `${backendUrl}/post/getPostComment/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      if (res.data.success) {
+        setComments(res.data.data);
+      }
+
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  useEffect(() => {
     if (backendUrl && id) {
       fetchPost();
+      fetchComments();
     }
   }, [backendUrl, id]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="animate-spin text-indigo-600" size={36} />
-          <p className="text-zinc-500 text-sm font-medium">Loading post details...</p>
-        </div>
-      </div>
-    );
-  }
+  // LIKE
+  const handleLike = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
 
-  if (errorMsg || !post) {
+      const response = await axios.post(
+        `${backendUrl}/post/like/${post._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      if (response.data.success) {
+        const liked = response.data.data.isLiked;
+
+        setIsLiked(liked);
+
+        setPost((prev) => ({
+          ...prev,
+          likes: liked
+            ? [...prev.likes, "temp"]
+            : prev.likes.slice(0, -1),
+        }));
+      }
+
+    } catch (error) {
+      toast.error("Like failed");
+    }
+  };
+
+  // SAVE
+  const handleSave = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+
+      const response = await axios.post(
+        `${backendUrl}/post/save/${post._id}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      if (response.data.success) {
+        setIsSaved(!isSaved);
+
+        toast.success(
+          isSaved
+            ? "Removed from saved"
+            : "Saved successfully"
+        );
+      }
+
+    } catch (error) {
+      toast.error("Save failed");
+    }
+  };
+
+  // COMMENT
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
+
+    try {
+      const token = localStorage.getItem("accessToken");
+
+      const res = await axios.post(
+        `${backendUrl}/post/comment/${id}`,
+        {
+          content: commentText,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
+
+      if (res.data.success) {
+        setComments((prev) => [...prev, res.data.data]);
+
+        setCommentText("");
+
+        setPost((prev) => ({
+          ...prev,
+          commentCount: (prev.commentCount || 0) + 1,
+        }));
+      }
+
+    } catch (error) {
+      toast.error("Comment failed");
+    }
+  };
+
+  if (loading || !post) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 px-4">
-        <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm max-w-sm w-full text-center space-y-4">
-          <div className="text-red-500 bg-red-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto text-xl font-bold">!</div>
-          <h3 className="text-zinc-800 font-bold text-lg">Post Unreachable</h3>
-          <p className="text-zinc-500 text-sm leading-relaxed">
-            {errorMsg || "The requested post post details could not be found."}
-          </p>
-          <button
-            onClick={() => navigate(-1)}
-            className="w-full inline-flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
-          >
-            <ArrowLeft size={16} /> Go Back
-          </button>
-        </div>
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 pt-24 pb-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        
-        {/* BACK NAVIGATION BUTTON */}
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-zinc-600 hover:text-zinc-900 font-semibold text-sm mb-4 group transition-colors"
-        >
-          <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-0.5" />
-          Back to Profile
-        </button>
+    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-2 md:p-6">
 
-        {/* POST CONTAINER */}
-        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
-          
-          {/* POST OWNER/HEADER INFO */}
-          <div className="p-4 border-b border-zinc-100 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-zinc-200 overflow-hidden">
-              <img 
-                src={post.owner?.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=150"} 
-                alt="avatar" 
-                className="w-full h-full object-cover"
+      <div className="bg-white w-full max-w-6xl h-[95vh] rounded-2xl overflow-hidden flex flex-col md:flex-row">
+
+        {/* LEFT MEDIA */}
+        <div className="flex-1 bg-black flex items-center justify-center relative">
+
+          <button
+            onClick={() => navigate(-1)}
+            className="absolute top-4 right-4 z-50 bg-black/50 p-2 rounded-full text-white"
+          >
+            <X size={20} />
+          </button>
+
+          {post.mediaType === "video" ? (
+            <video
+              src={post.mediaFiles?.[0]?.url}
+              controls
+              autoPlay
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <img
+              src={post.mediaFiles?.[0]?.url}
+              alt="post"
+              className="w-full h-full object-contain"
+            />
+          )}
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="w-full md:w-[420px] border-l border-zinc-200 flex flex-col bg-white">
+
+          {/* HEADER */}
+          <div className="p-4 border-b flex items-center gap-3">
+
+            <img
+              src={post.owner?.avatar}
+              className="w-10 h-10 rounded-full object-cover"
+              alt=""
+            />
+
+            <div>
+              <p className="font-bold text-sm">
+                {post.owner?.username}
+              </p>
+
+              <p className="text-xs text-zinc-400">
+                {new Date(post.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+
+          {/* COMMENTS */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+
+            {/* CAPTION */}
+            <div className="flex gap-3">
+
+              <img
+                src={post.owner?.avatar}
+                className="w-8 h-8 rounded-full"
+                alt=""
+              />
+
+              <div>
+                <p className="text-sm leading-relaxed">
+                  <span className="font-bold mr-2">
+                    {post.owner?.username}
+                  </span>
+
+                  {post.caption}
+                </p>
+              </div>
+            </div>
+
+            {/* COMMENTS */}
+            {comments.map((comment) => (
+              <div
+                key={comment._id}
+                className="flex gap-3"
+              >
+                <img
+                  src={comment.owner?.avatar}
+                  className="w-8 h-8 rounded-full object-cover"
+                  alt=""
+                />
+
+                <div>
+                  <p className="text-sm">
+                    <span className="font-bold mr-2">
+                      {comment.owner?.username}
+                    </span>
+
+                    {comment.content}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+          </div>
+
+          {/* ACTIONS */}
+          <div className="border-t">
+
+            <div className="p-4 flex items-center gap-4">
+
+              <Heart
+                onClick={handleLike}
+                className={`cursor-pointer transition ${
+                  isLiked
+                    ? "fill-red-500 text-red-500"
+                    : "hover:text-red-500"
+                }`}
+              />
+
+              <MessageCircle className="cursor-pointer" />
+
+              <Send className="cursor-pointer" />
+
+              <Bookmark
+                onClick={handleSave}
+                className={`ml-auto cursor-pointer ${
+                  isSaved
+                    ? "fill-black"
+                    : ""
+                }`}
               />
             </div>
-            <div>
-              <p className="font-bold text-zinc-800 text-sm">
-                {post.owner?.username || "vibe_user"}
+
+            <div className="px-4 pb-3">
+              <p className="font-semibold text-sm">
+                {post.likes?.length || 0} likes
               </p>
-              {post.createdAt && (
-                <p className="text-[11px] text-zinc-400">
-                  {new Date(post.createdAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric"
-                  })}
-                </p>
-              )}
+
+              <p className="text-xs text-zinc-400 mt-1">
+                {post.commentCount || 0} comments
+              </p>
             </div>
-          </div>
 
-          {/* MAIN POST IMAGERY */}
-          <div className="bg-zinc-900 flex items-center justify-center max-h-[550px] overflow-hidden aspect-video sm:aspect-auto">
-            <img
-              src={post.mediaFiles?.[0]?.url || post.thumbnail}
-              alt="Post content visualization"
-              className="w-full h-full object-contain max-h-[550px]"
-            />
-          </div>
+            {/* COMMENT INPUT */}
+            <div className="border-t p-3 flex gap-2">
 
-          {/* ACTIONS AND CAPTIONS */}
-          <div className="p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-50 pb-3">
-              <div className="flex items-center gap-5 text-zinc-700 font-semibold text-sm">
-                <span className="flex items-center gap-1.5 cursor-pointer hover:text-red-500 transition-colors">
-                  <Heart size={22} /> {post.likes?.length || 0}
-                </span>
-                <span className="flex items-center gap-1.5 cursor-pointer hover:text-indigo-600 transition-colors">
-                  <MessageCircle size={22} /> {post.commentCount || 0}
-                </span>
-              </div>
-              <button className="text-zinc-400 hover:text-zinc-700 transition-colors">
-                <Bookmark size={22} />
+              <input
+                type="text"
+                value={commentText}
+                onChange={(e) =>
+                  setCommentText(e.target.value)
+                }
+                placeholder="Add a comment..."
+                className="flex-1 border rounded-lg px-3 py-2 text-sm outline-none"
+              />
+
+              <button
+                onClick={handleAddComment}
+                className="text-indigo-600 font-semibold"
+              >
+                Post
               </button>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-sm text-zinc-800 leading-relaxed">
-                <span className="font-bold text-zinc-900 mr-2">
-                  {post.owner?.username || "vibe_user"}
-                </span>
-                {post.caption || "No description provided."}
-              </p>
-            </div>
           </div>
 
         </div>
+
       </div>
+
     </div>
   );
 };
 
 export default PostDetail;
+

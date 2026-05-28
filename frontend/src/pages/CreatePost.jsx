@@ -16,7 +16,8 @@ import {
   Video,
 } from "lucide-react";
 
-import axios from "axios";
+import axios from "../utils/axiosInstance"
+
 import toast from "react-hot-toast"; // Imported react-hot-toast
 
 import { ShopContext } from "../context/ShopContext";

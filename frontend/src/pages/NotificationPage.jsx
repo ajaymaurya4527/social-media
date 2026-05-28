@@ -2,7 +2,8 @@ import React, { useEffect, useContext } from "react";
 import { ArrowLeft, Bell, UserPlus, Heart, MessageCircle, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
-import axios from "axios";
+import axios from "../utils/axiosInstance"
+
 import toast from "react-hot-toast";
 
 const NotificationPage = () => {

@@ -1,7 +1,6 @@
 import { Router } from "express";
 
 import {
-  sendMessage,
   getChatHistory,
   markAsRead,
   getUnreadCount,
@@ -13,11 +12,9 @@ const router = Router();
 
 router.use(verifyJWT);
 
-router.post("/send", sendMessage);
-
 router.get("/history/:receiverId", getChatHistory);
 
-router.post("/mark-as-read/:receiverId", markAsRead);
+router.patch("/mark-as-read/:receiverId", markAsRead);
 
 router.get("/unread-count", getUnreadCount);
 

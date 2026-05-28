@@ -49,50 +49,41 @@ io.on("connection", (socket) => {
 
   // Send message
   socket.on("send_message", async (data) => {
-    try {
-      const { senderId, receiverId, messageText } = data;
+  try {
+    const { senderId, receiverId, messageText } = data;
 
-      if (
-        !senderId ||
-        !receiverId ||
-        !messageText ||
-        !messageText.trim()
-      ) {
-        return;
-      }
-
-      const roomId = [senderId.toString(), receiverId.toString()]
-        .sort()
-        .join("_");
-
-      // Save message
-      const message = await Message.create({
-        senderId,
-        receiverId,
-        messageText: messageText.trim(),
-        isRead: false,
-      });
-
-      // Populate sender and receiver
-      const populatedMessage = await Message.findById(message._id)
-        .populate("senderId", "username avatar fullName")
-        .populate("receiverId", "username avatar fullName");
-
-      // Real-time chat update
-      io.to(roomId).emit("receive_message", populatedMessage);
-
-      // Real-time unread notification
-      io.to(receiverId.toString()).emit(
-        "new_message_notification",
-        populatedMessage
-      );
-
-      console.log("Message sent successfully");
-    } catch (error) {
-      console.log("Socket message error:", error.message);
+    if (!senderId || !receiverId || !messageText?.trim()) {
+      return;
     }
-  });
 
+    const roomId = [senderId, receiverId]
+      .sort()
+      .join("_");
+
+    const message = await Message.create({
+      senderId,
+      receiverId,
+      messageText: messageText.trim(),
+      isRead: false,
+    });
+
+    const populatedMessage = await Message.findById(message._id)
+      .populate("senderId", "username avatar fullName")
+      .populate("receiverId", "username avatar fullName");
+
+    io.to(roomId).emit(
+      "receive_message",
+      populatedMessage
+    );
+
+    io.to(receiverId.toString()).emit(
+      "new_message_notification",
+      populatedMessage
+    );
+  } catch (error) {
+    console.log(error);
+  }
+});
   socket.on("disconnect", () => {
     console.log("Socket disconnected:", socket.id);
   });

@@ -3,22 +3,39 @@ import Header from './components/Header'
 import Footer from './components/Footer'
 import { Outlet, useLocation } from "react-router";
 import ShopContextProvider from './context/ShopContext';
-import { Toaster } from 'react-hot-toast'; // Imported Toaster
+import { Toaster } from 'react-hot-toast';
 
 function MainLayout() {
+
   const location = useLocation();
-  
-  // Define paths where Header/Footer should NOT show
-  const authPaths = ["/login", "/register"];
-  const isAuthPage = authPaths.includes(location.pathname);
+
+  // AUTH PAGES
+  const authPaths = [
+    "/login",
+    "/register"
+  ];
+
+  const isAuthPage =
+    authPaths.includes(
+      location.pathname
+    );
+
+  // REELS PAGE
+  const isReelsPage =
+    location.pathname === "/reels";
+
+  // POST DETAIL PAGE
+  const isPostDetailPage =
+    location.pathname.startsWith("/post/");
 
   return (
     <>
       <ShopContextProvider>
-        {/* Global Toaster component for notifications */}
-        <Toaster 
-          position="top-right" 
-          reverseOrder={false} 
+
+        {/* TOASTER */}
+        <Toaster
+          position="top-right"
+          reverseOrder={false}
           toastOptions={{
             style: {
               fontSize: '14px',
@@ -27,14 +44,33 @@ function MainLayout() {
           }}
         />
 
-        {!isAuthPage && <Header />}
-        <main className={isAuthPage ? "" : "pt-16"}>
+        {/* HEADER */}
+        {!isAuthPage &&
+          !isReelsPage && (
+            <Header />
+          )}
+
+        {/* MAIN CONTENT */}
+        <main
+          className={
+            isAuthPage || isReelsPage
+              ? ""
+              : "pt-16"
+          }
+        >
           <Outlet />
         </main>
-        {!isAuthPage && <Footer />}
+
+        {/* FOOTER */}
+        {!isAuthPage &&
+          !isReelsPage &&
+          !isPostDetailPage && (
+            <Footer />
+          )}
+
       </ShopContextProvider>
     </>
-  )
+  );
 }
 
-export default MainLayout
+export default MainLayout;

@@ -2,7 +2,8 @@ import React, { useContext, useEffect } from 'react';
 import { NavLink } from 'react-router';
 import { Heart, PlusSquare } from 'lucide-react';
 import { ShopContext } from "../context/ShopContext";
-import axios from "axios";
+import axios from "../utils/axiosInstance"
+
 
 const Header = () => {
   const { backendUrl, notifications, setNotifications } = useContext(ShopContext);

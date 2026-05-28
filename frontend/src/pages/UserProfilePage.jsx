@@ -16,7 +16,8 @@ import {
 
 import { useParams, useNavigate } from "react-router-dom";
 import { ShopContext } from "../context/ShopContext";
-import axios from "axios";
+import axios from "../utils/axiosInstance"
+
 
 // 1. Import toast configuration
 import toast from "react-hot-toast";

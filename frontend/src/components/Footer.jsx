@@ -1,26 +1,41 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { NavLink } from "react-router-dom";
 
-import { Home, Search, Film, Send } from "lucide-react";
+import {
+  Home,
+  Search,
+  Film,
+  Send,
+} from "lucide-react";
 
 import { ShopContext } from "../context/ShopContext";
 
-import axios from "axios";
+import axios from "../utils/axiosInstance"
+
 
 import { io } from "socket.io-client";
 
 const Footer = () => {
-  const { userAvatar, backendUrl } = useContext(ShopContext);
+  const { userAvatar, backendUrl } =
+    useContext(ShopContext);
 
-  const [totalUnread, setTotalUnread] = useState(0);
+  const [totalUnread, setTotalUnread] =
+    useState(0);
 
   const socket = useRef(null);
 
+  const token =
+    localStorage.getItem("accessToken");
+
+  // FETCH UNREAD
   const fetchUnreadCount = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
-
       if (!token) return;
 
       const res = await axios.get(
@@ -39,32 +54,74 @@ const Footer = () => {
     }
   };
 
+  // INITIAL FETCH
   useEffect(() => {
     fetchUnreadCount();
   }, []);
 
+  // SOCKET
   useEffect(() => {
-    const token = localStorage.getItem("accessToken");
+    if (!token || !backendUrl) return;
 
-    if (!token) return;
-
-    const socketHost = backendUrl.replace("/api/v1", "");
+    const socketHost =
+      backendUrl.replace("/api/v1", "");
 
     socket.current = io(socketHost, {
       withCredentials: true,
       transports: ["websocket"],
     });
 
-    socket.current.on("new_message_notification", () => {
-      fetchUnreadCount();
-    });
+    // JOIN PRIVATE ROOM
+    const initializeSocket = async () => {
+      try {
+        const res = await axios.get(
+          `${backendUrl}/users/current-user`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            withCredentials: true,
+          }
+        );
 
-    window.addEventListener("unread_reset", fetchUnreadCount);
+        const userData =
+          res.data?.data?.user ||
+          res.data?.data;
+
+        if (userData?._id) {
+          socket.current.emit(
+            "join_private_room",
+            userData._id
+          );
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    initializeSocket();
+
+    // REALTIME UNREAD UPDATE
+    socket.current.on(
+      "new_message_notification",
+      () => {
+        fetchUnreadCount();
+      }
+    );
+
+    // WHEN CHAT OPENED
+    window.addEventListener(
+      "unread_reset",
+      fetchUnreadCount
+    );
 
     return () => {
       socket.current?.disconnect();
 
-      window.removeEventListener("unread_reset", fetchUnreadCount);
+      window.removeEventListener(
+        "unread_reset",
+        fetchUnreadCount
+      );
     };
   }, [backendUrl]);
 
@@ -79,12 +136,17 @@ const Footer = () => {
           <Film size={26} />
         </NavLink>
 
-        <NavLink to="/messages" className="relative">
+        <NavLink
+          to="/messages"
+          className="relative"
+        >
           <Send size={26} />
 
           {totalUnread > 0 && (
             <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-              {totalUnread > 99 ? "99+" : totalUnread}
+              {totalUnread > 99
+                ? "99+"
+                : totalUnread}
             </span>
           )}
         </NavLink>
@@ -95,7 +157,11 @@ const Footer = () => {
 
         <NavLink to="/profile">
           <img
-            src={userAvatar || "https://placehold.co/100x100"}
+            src={
+              userAvatar ||
+              "https://placehold.co/100x100"
+            }
+            alt=""
             className="w-7 h-7 rounded-full object-cover"
           />
         </NavLink>

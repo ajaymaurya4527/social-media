@@ -70,10 +70,12 @@ const registerUser = async (req, res) => {
         await createdUser.save({ validateBeforeSave: false });
 
         const options = {
-            httpOnly: true,
-            secure: true,
-           
-        };
+    httpOnly: true,
+    secure:
+        process.env.NODE_ENV ===
+        "production",
+    sameSite: "lax"
+};
 
         // 10. Success Response with Tokens
         return res
@@ -99,148 +101,320 @@ const registerUser = async (req, res) => {
 }
 const loginUser = async (req, res) => {
     try {
-        // 1. Data lene ka (email or username, aur password)
-        const { email, username, password } = req.body;
 
-        // 2. Validation
+        const { email, username, password } =
+            req.body;
+
+        // =================================================
+        // VALIDATION
+        // =================================================
+
         if (!(username || email)) {
-            return res.status(400).json({ message: "Username or email is required" });
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Username or email is required"
+            });
         }
 
-        // 3. User ko find karo DB mein
+        // =================================================
+        // FIND USER
+        // =================================================
+
         const user = await User.findOne({
             $or: [{ username }, { email }]
         });
 
         if (!user) {
-            return res.status(404).json({ message: "User does not exist" });
+            return res.status(404).json({
+                success: false,
+                message: "User does not exist"
+            });
         }
 
-        // 4. Password check karo (aapka custom method)
-        const isPasswordValid = await user.isPasswordCorrect(password);
+        // =================================================
+        // PASSWORD CHECK
+        // =================================================
+
+        const isPasswordValid =
+            await user.isPasswordCorrect(
+                password
+            );
 
         if (!isPasswordValid) {
-            return res.status(401).json({ message: "Invalid user credentials" });
+            return res.status(401).json({
+                success: false,
+                message:
+                    "Invalid user credentials"
+            });
         }
 
-        // 5. Access and Refresh token generate karo
-        const accessToken = user.generateAccessToken();
-        const refreshToken = user.generateRefreshToken();
+        // =================================================
+        // GENERATE TOKENS
+        // =================================================
 
-        // 6. Refresh token ko DB mein save karo
+        const accessToken =
+            user.generateAccessToken();
+
+        const refreshToken =
+            user.generateRefreshToken();
+
+        // =================================================
+        // SAVE REFRESH TOKEN
+        // =================================================
+
         user.refreshToken = refreshToken;
-        await user.save({ validateBeforeSave: false });
 
-        // 7. Cookie options set karo (Security ke liye)
+        await user.save({
+            validateBeforeSave: false
+        });
+
+        // =================================================
+        // COOKIE OPTIONS
+        // =================================================
+
         const options = {
             httpOnly: true,
-            secure: true,
-            maxAge: 24 * 60 * 60 * 1000
+            secure:
+                process.env.NODE_ENV ===
+                "production",
+            sameSite: "lax"
         };
 
-        // 8. Response bhejo tokens ke saath
-        const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+        // =================================================
+        // USER DATA
+        // =================================================
+
+        const loggedInUser =
+            await User.findById(user._id)
+                .select(
+                    "-password -refreshToken"
+                );
+
+        // =================================================
+        // RESPONSE
+        // =================================================
 
         return res
             .status(200)
-            .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", refreshToken, options)
+            .cookie(
+                "accessToken",
+                accessToken,
+                options
+            )
+            .cookie(
+                "refreshToken",
+                refreshToken,
+                options
+            )
             .json({
                 success: true,
+                user: loggedInUser,
                 accessToken,
                 refreshToken,
-                message: "User logged in successfully"
+                message:
+                    "User logged in successfully"
             });
 
     } catch (error) {
-        console.log(error)
-        return res.status(500).json({ message: error.message });
-        
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+const generateAccessAndRefereshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+
+        const accessToken =
+            user.generateAccessToken();
+
+        const refreshToken =
+            user.generateRefreshToken();
+
+        user.refreshToken = refreshToken;
+
+        await user.save({
+            validateBeforeSave: false,
+        });
+
+        return {
+            accessToken,
+            newRefreshToken: refreshToken,
+        };
+    } catch (error) {
+        throw new Error(
+            "Something went wrong while generating tokens"
+        );
     }
 };
 
-const lagoutUser=async (req,res)=>{
+const lagoutUser = async (req, res) => {
+
     await User.findByIdAndUpdate(
         req.user._id,
         {
             $unset: {
-                refreshToken: 1 // this removes the field from document
+                refreshToken: 1
             }
         },
         {
             new: true
         }
-    )
+    );
 
-    const options = {//In our backend controller, const options = { httpOnly: true, secure: true } is used to configure security flags for cookies (like session IDs or JWTs) to protect them from common web attacks
+    const options = {
         httpOnly: true,
-        secure: true
-    }
+        secure:
+            process.env.NODE_ENV ===
+            "production",
+        sameSite: "lax"
+    };
 
     return res
-    .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json({success:true,message:"logged out successfully"})
-}
+        .status(200)
+        .clearCookie(
+            "accessToken",
+            options
+        )
+        .clearCookie(
+            "refreshToken",
+            options
+        )
+        .json({
+            success: true,
+            message:
+                "Logged out successfully"
+        });
+};
 
 const refreshAccessToken = async (req, res) => {
-    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    const incomingRefreshToken =
+        req.cookies.refreshToken ||
+        req.body.refreshToken;
+
+    // =================================================
+    // NO REFRESH TOKEN
+    // =================================================
 
     if (!incomingRefreshToken) {
         return res.status(401).json({
             success: false,
             message: "Unauthorized request"
-        })
+        });
     }
 
     try {
+
+        // =================================================
+        // VERIFY TOKEN
+        // =================================================
+
         const decodedToken = jwt.verify(
             incomingRefreshToken,
-            process.env.REFRESH_TOKEN_SECRET
-        )
+            process.env
+                .REFRESH_TOKEN_SECRET
+        );
 
-        const user = await User.findById(decodedToken?._id)
+        // =================================================
+        // FIND USER
+        // =================================================
+
+        const user = await User.findById(
+            decodedToken?._id
+        );
 
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: "Invalid refresh token"
-            })
+                message:
+                    "Invalid refresh token"
+            });
         }
 
-        if (incomingRefreshToken !== user?.refreshToken) {
+        // =================================================
+        // TOKEN MATCH CHECK
+        // =================================================
+
+        if (
+            incomingRefreshToken !==
+            user?.refreshToken
+        ) {
             return res.status(401).json({
                 success: false,
-                message: "Refresh token is expired or used"
-            })
+                message:
+                    "Refresh token expired or used"
+            });
         }
+
+        // =================================================
+        // COOKIE OPTIONS
+        // =================================================
 
         const options = {
             httpOnly: true,
-            secure: true
-        }
+            secure:
+                process.env.NODE_ENV ===
+                "production",
+            sameSite: "lax"
+        };
 
-        const { accessToken, newRefreshToken } = await generateAccessAndRefereshTokens(user._id)
+        // =================================================
+        // GENERATE NEW TOKENS
+        // =================================================
+
+        const {
+            accessToken,
+            newRefreshToken
+        } =
+            await generateAccessAndRefereshTokens(
+                user._id
+            );
+
+        // =================================================
+        // RESPONSE
+        // =================================================
 
         return res
             .status(200)
-            .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", newRefreshToken, options)
+            .cookie(
+                "accessToken",
+                accessToken,
+                options
+            )
+            .cookie(
+                "refreshToken",
+                newRefreshToken,
+                options
+            )
             .json({
                 success: true,
+
                 accessToken,
-                refreshToken: newRefreshToken,
-                message: "Access token refreshed"
-            })
+
+                refreshToken:
+                    newRefreshToken,
+
+                message:
+                    "Access token refreshed"
+            });
 
     } catch (error) {
+
         return res.status(401).json({
             success: false,
-            message: error?.message || "Invalid refresh token"
-        })
+            message:
+                error?.message ||
+                "Invalid refresh token"
+        });
     }
-}
+};
+
 const changeCurrentPassword = async (req, res) => {
     const { oldPassword, newPassword } = req.body
 
@@ -728,4 +902,4 @@ const getUserPublicProfile = async (req, res) => {
 
 
 
-export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,updateAccountDetails,searchUsers,getUserPublicProfile};
+export { registerUser, loginUser,lagoutUser,refreshAccessToken,changeCurrentPassword,getCurrentUser,updateAccount,updateUserAvatar,updateUserCoverImage,getUserChannelProfile,getWatchHistory,updateAccountDetails,searchUsers,getUserPublicProfile,generateAccessAndRefereshTokens};

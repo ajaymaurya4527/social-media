@@ -1,60 +1,6 @@
 import { Message } from "../model/message.model.js";
 
-const sendMessage = async (req, res) => {
-  try {
-    const { receiverId, messageText } = req.body;
 
-    const senderId = req.user?._id;
-
-    if (!receiverId) {
-      return res.status(400).json({
-        success: false,
-        message: "Receiver required",
-      });
-    }
-
-    if (!messageText?.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Message required",
-      });
-    }
-
-    const message = await Message.create({
-      senderId,
-      receiverId,
-      messageText: messageText.trim(),
-      isRead: false,
-    });
-
-    const populatedMessage = await Message.findById(message._id)
-      .populate("senderId", "username avatar fullName")
-      .populate("receiverId", "username avatar fullName");
-
-    const io = req.app.get("io");
-
-    const roomId = [senderId.toString(), receiverId.toString()]
-      .sort()
-      .join("_");
-
-    io.to(roomId).emit("receive_message", populatedMessage);
-
-    io.to(receiverId.toString()).emit(
-      "new_message_notification",
-      populatedMessage
-    );
-
-    return res.status(201).json({
-      success: true,
-      data: populatedMessage,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
 
 const getChatHistory = async (req, res) => {
   try {
@@ -140,7 +86,6 @@ const getUnreadCount = async (req, res) => {
 };
 
 export {
-  sendMessage,
   getChatHistory,
   markAsRead,
   getUnreadCount,
